@@ -1,21 +1,21 @@
-# Интеграция системы эмбиента с главным меню
+# Integration of the ambient system with the main menu
 
-# Экран настроек эмбиента
+# Ambient settings screen
 screen ambient_settings():
     tag menu
     
-    use game_menu(_("Настройки эмбиента"), scroll="viewport"):
+    use game_menu(_("Ambient Settings"), scroll="viewport"):
         
         style_prefix "ambient"
         
         vbox:
             spacing 20
             
-            # Основная громкость
+            # Main volume
             hbox:
                 spacing 20
                 
-                text "Громкость эмбиента:" xalign 0.0
+                text "Ambient volume:" xalign 0.0
                 
                 bar:
                     xsize 300
@@ -24,39 +24,39 @@ screen ambient_settings():
                     
                 text "{:.2f}".format(ambient_volume_setting) xalign 1.0
             
-            # Статус системы
+            # System status
             hbox:
                 spacing 20
                 
-                text "Статус системы:" 
+                text "System status:" 
                 
                 if ambient.main_theme['is_playing']:
-                    text "Играет основная тема" color "#ffaa00"
+                    text "Main theme playing" color "#ffaa00"
                 elif ambient.is_active:
-                    text "Активен эмбиент" color "#00ff00"
+                    text "Ambient active" color "#00ff00"
                 else:
-                    text "Неактивна" color "#ff0000"
+                    text "Inactive" color "#ff0000"
             
-            # Управление системой
+            # System control
             hbox:
                 spacing 20
                 
                 if ambient.is_active:
-                    textbutton "Остановить эмбиент":
+                    textbutton "Stop ambient":
                         action Function(ambient.stop_ambient)
                         
-                    textbutton "Пауза":
+                    textbutton "Pause":
                         action Function(ambient.pause_ambient)
                         
-                    textbutton "Продолжить":
+                    textbutton "Resume":
                         action Function(ambient.resume_ambient)
                 else:
-                    textbutton "Запустить эмбиент":
+                    textbutton "Start ambient":
                         action [Function(renpy.call_in_new_context, "setup_ambient"), 
                                 Function(ambient.start_ambient)]
             
-            # Информация о треках
-            text "Активные треки:" size 20
+            # Track information
+            text "Active tracks:" size 20
             
             for track_id, track_data in ambient.tracks.items():
                 hbox:
@@ -65,15 +65,15 @@ screen ambient_settings():
                     text track_id + ":"
                     
                     if track_data['is_playing']:
-                        text "Играет" color "#00ff00"
+                        text "Playing" color "#00ff00"
                         text "({:.1f}%)".format(track_data['current_volume'] * 100)
                     else:
-                        text "Остановлен" color "#888888"
+                        text "Stopped" color "#888888"
                     
-                    text "Тип: " + track_data['type']
+                    text "Type: " + track_data['type']
                     
                     if track_data['type'] == 'random':
-                        text "Шанс: {:.0f}%".format(track_data['play_chance'] * 100)
+                        text "Chance: {:.0f}%".format(track_data['play_chance'] * 100)
 
 style ambient_hbox:
     spacing 10
@@ -87,11 +87,11 @@ style ambient_button:
 style ambient_button_text:
     size 14
 
-# Добавляем кнопку в меню настроек
+# Add button to settings menu
 screen preferences():
     tag menu
     
-    use game_menu(_("Настройки"), scroll="viewport"):
+    use game_menu(_("Settings"), scroll="viewport"):
         
         vbox:
             hbox:
@@ -101,23 +101,23 @@ screen preferences():
                     
                     vbox:
                         style_prefix "radio"
-                        label _("Режим экрана")
-                        textbutton _("Оконный") action Preference("display", "window")
-                        textbutton _("Полный") action Preference("display", "fullscreen")
+                        label _("Screen mode")
+                        textbutton _("Windowed") action Preference("display", "window")
+                        textbutton _("Fullscreen") action Preference("display", "fullscreen")
                         
                 vbox:
                     style_prefix "radio"
-                    label _("Сторона отката")
-                    textbutton _("Отключить") action Preference("rollback side", "disable")
-                    textbutton _("Левая") action Preference("rollback side", "left")
-                    textbutton _("Правая") action Preference("rollback side", "right")
+                    label _("Rollback side")
+                    textbutton _("Disable") action Preference("rollback side", "disable")
+                    textbutton _("Left") action Preference("rollback side", "left")
+                    textbutton _("Right") action Preference("rollback side", "right")
                     
                 vbox:
                     style_prefix "check"
-                    label _("Пропускать")
-                    textbutton _("Непрочитанный текст") action Preference("skip", "toggle")
-                    textbutton _("После выборов") action Preference("after choices", "toggle")
-                    textbutton _("Переходы") action InvertSelected(Preference("transitions", "toggle"))
+                    label _("Skip")
+                    textbutton _("Unread text") action Preference("skip", "toggle")
+                    textbutton _("After choices") action Preference("after choices", "toggle")
+                    textbutton _("Transitions") action InvertSelected(Preference("transitions", "toggle"))
                     
             null height (4 * gui.pref_spacing)
             
@@ -126,46 +126,46 @@ screen preferences():
                 box_wrap True
                 
                 vbox:
-                    label _("Скорость текста")
+                    label _("Text speed")
                     bar value Preference("text speed")
                     
-                    label _("Скорость авточтения")
+                    label _("Auto-forward speed")
                     bar value Preference("auto-forward time")
                     
                 vbox:
                     
                     if config.has_music:
-                        label _("Громкость музыки")
+                        label _("Music volume")
                         hbox:
                             bar value Preference("music volume")
                             
                     if config.has_sound:
-                        label _("Громкость звуков")
+                        label _("Sound volume")
                         hbox:
                             bar value Preference("sound volume")
                             
                         if config.sample_sound:
-                            textbutton _("Тест") action Play("sound", config.sample_sound)
+                            textbutton _("Test") action Play("sound", config.sample_sound)
                             
                     if config.has_voice:
-                        label _("Громкость голоса")
+                        label _("Voice volume")
                         hbox:
                             bar value Preference("voice volume")
                             
                         if config.sample_voice:
-                            textbutton _("Тест") action Play("voice", config.sample_voice)
+                            textbutton _("Test") action Play("voice", config.sample_voice)
                             
                     if config.has_music or config.has_sound or config.has_voice:
                         null height gui.pref_spacing
                         
-                        textbutton _("Выключить всё"):
+                        textbutton _("Mute all"):
                             action Preference("all mute", "toggle")
                             style "mute_all_button"
             
-            # Кнопка настроек эмбиента
+            # Ambient settings button
             null height (2 * gui.pref_spacing)
             
-            textbutton _("Настройки эмбиента"):
+            textbutton _("Ambient Settings"):
                 action ShowMenu("ambient_settings")
                 style "ambient_settings_button"
 

@@ -1,10 +1,10 @@
-# Конфигурация динамического эмбиента
-# Настройка всех треков для системы
+# Dynamic ambient configuration
+# Setup of all tracks for the system
 
 label setup_ambient:
-    # Настройка базовых треков эмбиента
+    # Setup of basic ambient tracks
     
-    # Обязательные фоновые треки (играют постоянно)
+    # Mandatory background tracks (play continuously)
     $ ambient.add_track(
         track_id="base_ambient_1",
         filename="audio/ambient_base_1.ogg",
@@ -23,7 +23,7 @@ label setup_ambient:
         fade_out_time=3.0
     )
     
-    # Случайные атмосферные треки
+    # Random atmospheric tracks
     $ ambient.add_track(
         track_id="random_wind",
         filename="audio/ambient_wind.ogg", 
@@ -62,51 +62,51 @@ label setup_ambient:
     
     return
 
-# Настройка основной темы меню
+# Main menu theme setup
 label setup_main_theme:
-    # Устанавливаем основную тему меню
+    # Set the main menu theme
     $ ambient.set_main_theme(
         filename="audio/main_theme.ogg",
-        duration=40,        # длительность в секундах
-        volume=0.8,         # громкость основной темы
-        fade_in_time=2.0,   # плавное появление
-        fade_out_time=4.0   # плавное исчезновение
+        duration=40,        # duration in seconds
+        volume=0.8,         # main theme volume
+        fade_in_time=2.0,   # fade in
+        fade_out_time=4.0   # fade out
     )
     return
 
-# Пример запуска последовательности: основная тема → эмбиент
+# Example of starting the sequence: main theme → ambient
 label start_theme_and_ambient:
-    # Настраиваем треки эмбиента
+    # Setup ambient tracks
     call setup_ambient
     
-    # Настраиваем основную тему
+    # Setup main theme
     call setup_main_theme
     
-    # Запускаем последовательность: сначала тема, потом эмбиент
+    # Start sequence: first theme, then ambient
     $ ambient.start_with_main_theme()
     
     return
 
-# Лейбл для остановки эмбиента при переходе в игру
+# Label for stopping ambient when switching to the game
 label stop_main_menu_ambient:
     $ ambient.stop_ambient(fade_out=True)
     return
 
-# Настройки громкости эмбиента
+# Ambient volume settings
 label adjust_ambient_volume:
     menu:
-        "Громкость эмбиента:"
+        "Ambient volume:"
         
-        "Тихо (30%)":
+        "Quiet (30%)":
             $ ambient.set_base_volume(0.3)
             
-        "Средне (50%)":
+        "Medium (50%)":
             $ ambient.set_base_volume(0.5)
             
-        "Нормально (70%)":
+        "Normal (70%)":
             $ ambient.set_base_volume(0.7)
             
-        "Громко (90%)":
+        "Loud (90%)":
             $ ambient.set_base_volume(0.9)
     
     return 

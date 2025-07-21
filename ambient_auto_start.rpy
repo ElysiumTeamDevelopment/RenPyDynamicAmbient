@@ -1,26 +1,24 @@
-# Автоматический запуск эмбиента при показе главного меню
+# Automatic ambient start when main menu is shown
 
-# Переопределяем экран главного меню для автоматического запуска
+# Override main menu screen for automatic start
 screen main_menu():
 
-    ## Этот тег гарантирует, что любой другой экран с тем же тегом будет
-    ## заменять этот.
+    ## This tag ensures that any other screen with the same tag will replace this one.
     tag menu
 
-    # Автоматический запуск эмбиента при показе экрана
+    # Automatic ambient start when screen is shown
     on "show" action Function(renpy.call_in_new_context, "start_main_menu_ambient")
     
-    # Остановка эмбиента при скрытии экрана (переход в игру или выход)
+    # Stop ambient when screen is hidden (switch to game or exit)
     on "hide" action Function(ambient.stop_ambient)
 
     add gui.main_menu_background
 
-    ## Эта пустая рамка затеняет главное меню.
+    ## This empty frame shades the main menu.
     frame:
         style "main_menu_frame"
 
-    ## Оператор use включает отображение другого экрана в данном. Актуальное
-    ## содержание главного меню находится на экране навигации.
+    ## The use operator includes another screen here. Actual main menu content is on the navigation screen.
     use navigation
 
     if gui.show_name:
@@ -34,14 +32,14 @@ screen main_menu():
             text "[config.version]":
                 style "main_menu_version"
 
-# Обработчик завершения игры для корректной остановки
+# Game quit handler for proper ambient stop
 init python:
     def quit_callback():
-        """Корректно останавливает систему эмбиента при выходе из игры"""
+        """Properly stops the ambient system on game exit"""
         try:
             ambient.stop_ambient(fade_out=False)
         except:
             pass
     
-    # Регистрируем callback на выход
+    # Register callback on quit
     config.quit_callbacks.append(quit_callback) 
