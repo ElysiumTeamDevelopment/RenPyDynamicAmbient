@@ -2,6 +2,24 @@ init python:
     import random
     import threading
     import time
+    # ambient_templates will be accessed via store
+    
+    def apply_ambient_template(ambient, template_name):
+        """
+        Adds all tracks from the specified template to the ambient system.
+        ambient: instance of DynamicAmbientSystem
+        template_name: key from store.ambient_templates
+        
+        Example:
+            apply_ambient_template(ambient, "street_ambient")
+        or:
+            ambient.use_template("street_ambient")
+        """
+        templates = getattr(store, "ambient_templates", None)
+        if not templates or template_name not in templates:
+            raise ValueError("Unknown ambient template: %s" % template_name)
+        for params in templates[template_name]:
+            ambient.add_track(**params)
     
     class DynamicAmbientSystem:
         """
@@ -46,6 +64,14 @@ init python:
             
             # Separate channel for the main theme
             renpy.music.register_channel("main_theme", "music", loop=False)
+        
+        def use_template(self, template_name):
+            """
+            Adds all tracks from a template (see ambient_templates.rpy)
+            Example:
+                ambient.use_template("street_ambient")
+            """
+            apply_ambient_template(self, template_name)
         
         def add_track(self, track_id, filename, track_type="random", 
                         volume=1.0, play_chance=0.5, min_duration=30, 

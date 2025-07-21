@@ -195,6 +195,35 @@ fade_in_time=2.0-6.0
 fade_out_time=2.0-4.0
 ```
 
+## Шаблоны треков
+
+Вы можете использовать готовые шаблоны для типовых наборов эмбиента (например, улица, лес и т.д.).
+
+Шаблоны определяются в файле `ambient_templates.rpy` в виде словаря. Пример:
+
+```python
+init python:
+    ambient_templates = {
+        "street_ambient": [
+            {"track_id": "street_base", "filename": "audio/street_base.ogg", "track_type": "mandatory", "volume": 0.5},
+            {"track_id": "car_horn", "filename": "audio/car_horn.ogg", "track_type": "random", "volume": 0.3},
+        ],
+        "forest_ambient": [
+            {"track_id": "forest_base", "filename": "audio/forest_base.ogg", "track_type": "mandatory", "volume": 0.6},
+            {"track_id": "birds", "filename": "audio/birds.ogg", "track_type": "random", "volume": 0.4},
+        ],
+    }
+```
+
+Чтобы применить шаблон, используйте:
+
+```renpy
+$ ambient.use_template("street_ambient")
+$ ambient.start_ambient()
+```
+
+Это добавит все треки из шаблона в систему. Вы можете создавать и использовать любое количество шаблонов для разных локаций или ситуаций.
+
 ## Управление через интерфейс
 
 ### Экран настроек эмбиента

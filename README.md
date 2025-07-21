@@ -195,6 +195,35 @@ fade_in_time=2.0-6.0
 fade_out_time=2.0-4.0
 ```
 
+## Track Templates
+
+You can use ready-made templates for typical ambient sets (for example, street, forest, etc.).
+
+Templates are defined in the `ambient_templates.rpy` file as a dictionary. Example:
+
+```python
+init python:
+    ambient_templates = {
+        "street_ambient": [
+            {"track_id": "street_base", "filename": "audio/street_base.ogg", "track_type": "mandatory", "volume": 0.5},
+            {"track_id": "car_horn", "filename": "audio/car_horn.ogg", "track_type": "random", "volume": 0.3},
+        ],
+        "forest_ambient": [
+            {"track_id": "forest_base", "filename": "audio/forest_base.ogg", "track_type": "mandatory", "volume": 0.6},
+            {"track_id": "birds", "filename": "audio/birds.ogg", "track_type": "random", "volume": 0.4},
+        ],
+    }
+```
+
+To apply a template, use:
+
+```renpy
+$ ambient.use_template("street_ambient")
+$ ambient.start_ambient()
+```
+
+This will add all tracks from the template to the system. You can create and use any number of templates for different locations or situations.
+
 ## Interface Control
 
 ### Ambient settings screen
