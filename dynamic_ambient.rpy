@@ -17,7 +17,8 @@ init python:
         """
         templates = getattr(store, "ambient_templates", None)
         if not templates or template_name not in templates:
-            raise ValueError("Unknown ambient template: %s" % template_name)
+            renpy.log("[DynamicAmbient] Ambient template not found: %s" % template_name)
+            return
         for params in templates[template_name]:
             ambient.add_track(**params)
     
