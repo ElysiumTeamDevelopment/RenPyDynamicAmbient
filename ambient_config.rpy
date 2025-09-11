@@ -2,12 +2,12 @@
 # Setup of all tracks for the system
 
 label setup_ambient:
-    # Setup of basic ambient tracks
+    # Base ambient tracks setup
     
-    # Mandatory background tracks (play continuously)
+    # Mandatory background tracks (play constantly)
     $ ambient.add_track(
         track_id="base_ambient_1",
-        filename="audio/ambient_base_1.ogg",
+        filename="audio/base_ambient_1.ogg",
         track_type="mandatory",
         volume=0.6,
         fade_in_time=4.0,
@@ -16,7 +16,7 @@ label setup_ambient:
     
     $ ambient.add_track(
         track_id="base_ambient_2", 
-        filename="audio/ambient_base_2.ogg",
+        filename="audio/base_ambient_2.ogg",
         track_type="mandatory",
         volume=0.4,
         fade_in_time=5.0,
@@ -26,7 +26,7 @@ label setup_ambient:
     # Random atmospheric tracks
     $ ambient.add_track(
         track_id="random_wind",
-        filename="audio/ambient_wind.ogg", 
+        filename="audio/wind_ambient.ogg", 
         track_type="random",
         volume=0.8,
         play_chance=0.3,
@@ -38,7 +38,7 @@ label setup_ambient:
     
     $ ambient.add_track(
         track_id="random_nature",
-        filename="audio/ambient_nature.ogg",
+        filename="audio/nature_ambient.ogg",
         track_type="random", 
         volume=0.5,
         play_chance=0.4,
@@ -50,7 +50,7 @@ label setup_ambient:
     
     $ ambient.add_track(
         track_id="random_atmosphere",
-        filename="audio/ambient_atmosphere.ogg",
+        filename="audio/atmosphere_ambient.ogg",
         track_type="random",
         volume=0.7,
         play_chance=0.25,
@@ -64,9 +64,9 @@ label setup_ambient:
 
 # Main menu theme setup
 label setup_main_theme:
-    # Set the main menu theme
+    # Set main menu theme
     $ ambient.set_main_theme(
-        filename="audio/main_theme.ogg",
+        filename="audio/main_theme.mp3",
         duration=40,        # duration in seconds
         volume=0.8,         # main theme volume
         fade_in_time=2.0,   # fade in
@@ -74,12 +74,12 @@ label setup_main_theme:
     )
     return
 
-# Example of starting the sequence: main theme → ambient
+# Example of sequence start: main theme → ambient
 label start_theme_and_ambient:
-    # Setup ambient tracks
+    # Set up ambient tracks
     call setup_ambient
     
-    # Setup main theme
+    # Set up main theme
     call setup_main_theme
     
     # Start sequence: first theme, then ambient
@@ -87,7 +87,7 @@ label start_theme_and_ambient:
     
     return
 
-# Label for stopping ambient when switching to the game
+# Label to stop ambient when entering game
 label stop_main_menu_ambient:
     $ ambient.stop_ambient(fade_out=True)
     return
@@ -95,18 +95,18 @@ label stop_main_menu_ambient:
 # Ambient volume settings
 label adjust_ambient_volume:
     menu:
-        "Ambient volume:"
+        "Ambient Volume:"
         
-        "Quiet (30%)":
+        "Quiet (30%)": 
             $ ambient.set_base_volume(0.3)
             
-        "Medium (50%)":
+        "Medium (50%)": 
             $ ambient.set_base_volume(0.5)
             
-        "Normal (70%)":
+        "Normal (70%)": 
             $ ambient.set_base_volume(0.7)
             
-        "Loud (90%)":
+        "Loud (90%)": 
             $ ambient.set_base_volume(0.9)
     
     return 
