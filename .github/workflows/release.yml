@@ -48,52 +48,40 @@ jobs:
           fi
           
       - name: Generate changelog
-        id: changelog
         run: |
-          echo 'CHANGELOG<<EOF' >> $GITHUB_OUTPUT
           if [ -n "${{ steps.prev_tag.outputs.prev_tag }}" ]; then
-            echo "### 🔄 Changes since ${{ steps.prev_tag.outputs.prev_tag }}:" >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            git log --pretty=format:"- %s (%h)" ${{ steps.prev_tag.outputs.prev_tag }}..${{ github.ref_name }} | head -20 >> $GITHUB_OUTPUT
+            echo "## 🔄 Changes since ${{ steps.prev_tag.outputs.prev_tag }}" > changelog.md
+            echo "" >> changelog.md
+            git log --pretty=format:"- %s (%h)" ${{ steps.prev_tag.outputs.prev_tag }}..${{ github.ref_name }} | head -20 >> changelog.md
           else
-            echo "### 🎉 First release!" >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            echo "#### All commits in this release:" >> $GITHUB_OUTPUT
-            git log --pretty=format:"- %s (%h)" | head -20 >> $GITHUB_OUTPUT
+            echo "## 🎉 First release!" > changelog.md
+            echo "" >> changelog.md
+            echo "### All commits in this release:" >> changelog.md
+            git log --pretty=format:"- %s (%h)" | head -20 >> changelog.md
           fi
-          echo 'EOF' >> $GITHUB_OUTPUT
-
-      - name: Generate release notes
-        id: release_notes
-        run: |
-          echo 'RELEASE_NOTES<<EOF' >> $GITHUB_OUTPUT
-          echo "## RenPy Dynamic Ambient ${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "${{ steps.changelog.outputs.CHANGELOG }}" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "### 📦 Included files:" >> $GITHUB_OUTPUT
-          echo "- \`ambient_auto_start.rpy\` - auto-start ambient effects" >> $GITHUB_OUTPUT
-          echo "- \`ambient_config.rpy\` - settings and configuration" >> $GITHUB_OUTPUT
-          echo "- \`ambient_integration.rpy\` - RenPy integration" >> $GITHUB_OUTPUT
-          echo "- \`ambient_templates.rpy\` - templates for creating effects" >> $GITHUB_OUTPUT
-          echo "- \`dynamic_ambient.rpy\` - main module" >> $GITHUB_OUTPUT
-          echo "- \`LICENSE\` - license file" >> $GITHUB_OUTPUT
-          echo "- \`README.md\` - documentation" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "### 🚀 Installation:" >> $GITHUB_OUTPUT
-          echo "1. Download the \`RenPyDynamicAmbient-${{ github.ref_name }}.zip\` archive" >> $GITHUB_OUTPUT
-          echo "2. Extract to the \`game/\` folder of your RenPy project" >> $GITHUB_OUTPUT
-          echo "3. Restart the game to apply changes" >> $GITHUB_OUTPUT
-          echo "" >> $GITHUB_OUTPUT
-          echo "### 📖 Documentation:" >> $GITHUB_OUTPUT
-          echo "Detailed documentation is available in the README.md file" >> $GITHUB_OUTPUT
-          echo 'EOF' >> $GITHUB_OUTPUT
+          echo "" >> changelog.md
+          echo "### 📦 Included files:" >> changelog.md
+          echo "- \`ambient_auto_start.rpy\` - auto-start ambient effects" >> changelog.md
+          echo "- \`ambient_config.rpy\` - settings and configuration" >> changelog.md
+          echo "- \`ambient_integration.rpy\` - RenPy integration" >> changelog.md
+          echo "- \`ambient_templates.rpy\` - templates for creating effects" >> changelog.md
+          echo "- \`dynamic_ambient.rpy\` - main module" >> changelog.md
+          echo "- \`LICENSE\` - license file" >> changelog.md
+          echo "- \`README.md\` - documentation" >> changelog.md
+          echo "" >> changelog.md
+          echo "### 🚀 Installation:" >> changelog.md
+          echo "1. Download the \`RenPyDynamicAmbient-${{ github.ref_name }}.zip\` archive" >> changelog.md
+          echo "2. Extract to the \`game/\` folder of your RenPy project" >> changelog.md
+          echo "3. Restart the game to apply changes" >> changelog.md
+          echo "" >> changelog.md
+          echo "### 📖 Documentation:" >> changelog.md
+          echo "Detailed documentation is available in the README.md file" >> changelog.md
           
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
           name: "RenPy Dynamic Ambient ${{ github.ref_name }}"
-          body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+          body_path: changelog.md
           files: RenPyDynamicAmbient-${{ github.ref_name }}.zip
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
