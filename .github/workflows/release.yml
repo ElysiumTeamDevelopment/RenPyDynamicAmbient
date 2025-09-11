@@ -50,7 +50,8 @@ jobs:
       - name: Generate changelog
         id: changelog
         run: |
-          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          DELIMITER=$(openssl rand -hex 8)
+          echo "CHANGELOG<<$DELIMITER" >> $GITHUB_OUTPUT
           if [ -n "${{ steps.prev_tag.outputs.prev_tag }}" ]; then
             echo "### 🔄 Changes since ${{ steps.prev_tag.outputs.prev_tag }}:" >> $GITHUB_OUTPUT
             echo "" >> $GITHUB_OUTPUT
@@ -61,12 +62,13 @@ jobs:
             echo "#### All commits in this release:" >> $GITHUB_OUTPUT
             git log --pretty=format:"- %s (%h)" | head -20 >> $GITHUB_OUTPUT
           fi
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$DELIMITER" >> $GITHUB_OUTPUT
 
       - name: Generate release notes
         id: release_notes
         run: |
-          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+          DELIMITER=$(openssl rand -hex 8)
+          echo "RELEASE_NOTES<<$DELIMITER" >> $GITHUB_OUTPUT
           echo "## RenPy Dynamic Ambient ${{ github.ref_name }}" >> $GITHUB_OUTPUT
           echo "" >> $GITHUB_OUTPUT
           echo "${{ steps.changelog.outputs.CHANGELOG }}" >> $GITHUB_OUTPUT
@@ -87,7 +89,7 @@ jobs:
           echo "" >> $GITHUB_OUTPUT
           echo "### 📖 Documentation:" >> $GITHUB_OUTPUT
           echo "Detailed documentation is available in the README.md file" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+          echo "$DELIMITER" >> $GITHUB_OUTPUT
           
       - name: Create Release
         uses: softprops/action-gh-release@v1
