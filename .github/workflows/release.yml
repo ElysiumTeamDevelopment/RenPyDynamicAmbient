@@ -1,0 +1,96 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'  # Запускается при создании тегов начинающихся с 'v' (например, v1.0.0)
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: write  # Необходимо для создания релизов
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Create release directory
+        run: mkdir -p release
+        
+      - name: Copy files to release directory
+        run: |
+          cp ambient_auto_start.rpy release/
+          cp ambient_config.rpy release/
+          cp ambient_integration.rpy release/
+          cp ambient_templates.rpy release/
+          cp dynamic_ambient.rpy release/
+          cp LICENSE release/
+          cp README.md release/
+          
+      - name: Create zip archive
+        run: |
+          cd release
+          zip -r ../RenPyDynamicAmbient-${{ github.ref_name }}.zip .
+          cd ..
+          
+      - name: Get previous tag
+        id: prev_tag
+        run: |
+          PREV_TAG=$(git tag --sort=-version:refname | sed -n '2p')
+          if [ -z "$PREV_TAG" ]; then
+            echo "prev_tag=" >> $GITHUB_OUTPUT
+          else
+            echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Generate changelog
+        id: changelog
+        run: |
+          echo "CHANGELOG<<EOF" >> $GITHUB_OUTPUT
+          if [ -n "${{ steps.prev_tag.outputs.prev_tag }}" ]; then
+            echo "### 🔄 Изменения с версии ${{ steps.prev_tag.outputs.prev_tag }}:" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            git log --pretty=format:"- %s (%h)" ${{ steps.prev_tag.outputs.prev_tag }}..${{ github.ref_name }} | head -20 >> $GITHUB_OUTPUT
+          else
+            echo "### 🎉 Первый релиз!" >> $GITHUB_OUTPUT
+            echo "" >> $GITHUB_OUTPUT
+            echo "- Инициальная версия RenPy Dynamic Ambient модуля" >> $GITHUB_OUTPUT
+          fi
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          echo "RELEASE_NOTES<<EOF" >> $GITHUB_OUTPUT
+          echo "## RenPy Dynamic Ambient ${{ github.ref_name }}" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "${{ steps.changelog.outputs.CHANGELOG }}" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### 📦 Включенные файлы:" >> $GITHUB_OUTPUT
+          echo "- \`ambient_auto_start.rpy\` - автозапуск ambient эффектов" >> $GITHUB_OUTPUT
+          echo "- \`ambient_config.rpy\` - настройки и конфигурация" >> $GITHUB_OUTPUT
+          echo "- \`ambient_integration.rpy\` - интеграция с RenPy" >> $GITHUB_OUTPUT
+          echo "- \`ambient_templates.rpy\` - шаблоны для создания эффектов" >> $GITHUB_OUTPUT
+          echo "- \`dynamic_ambient.rpy\` - основной модуль" >> $GITHUB_OUTPUT
+          echo "- \`LICENSE\` - лицензия" >> $GITHUB_OUTPUT
+          echo "- \`README.md\` - документация" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### 🚀 Установка:" >> $GITHUB_OUTPUT
+          echo "1. Скачайте архив \`RenPyDynamicAmbient-${{ github.ref_name }}.zip\`" >> $GITHUB_OUTPUT
+          echo "2. Распакуйте в папку \`game/\` вашего RenPy проекта" >> $GITHUB_OUTPUT
+          echo "3. Перезапустите игру для применения изменений" >> $GITHUB_OUTPUT
+          echo "" >> $GITHUB_OUTPUT
+          echo "### 📖 Документация:" >> $GITHUB_OUTPUT
+          echo "Подробная документация доступна в файле README.md" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "RenPy Dynamic Ambient ${{ github.ref_name }}"
+          body: ${{ steps.release_notes.outputs.RELEASE_NOTES }}
+          files: RenPyDynamicAmbient-${{ github.ref_name }}.zip
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
