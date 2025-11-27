@@ -21,7 +21,7 @@ init python:
             track_count = 6 
             
             try:
-                with renpy.file("ёaudio_assets.yaml") as f:
+                with renpy.file("audio_assets.yaml") as f:
                     config = yaml.safe_load(f)
                     tracks = config.get('tracks', {})
                     track_count = len(tracks)
