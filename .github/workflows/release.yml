@@ -19,15 +19,19 @@ jobs:
           fetch-depth: 0  # Fetch full history for proper git log
         
       - name: Create release directory
-        run: mkdir -p release
+        run: |
+          mkdir -p release
+          mkdir -p release/libs/rpda
         
       - name: Copy files to release directory
         run: |
           cp ambient_auto_start.rpy release/
-          cp ambient_config.rpy release/
           cp ambient_integration.rpy release/
-          cp ambient_templates.rpy release/
           cp dynamic_ambient.rpy release/
+          cp debug_ambient.rpy release/
+          cp audio_assets.yaml release/
+          cp arrangements.yaml release/
+          cp libs/rpda/02-rpda-cds.rpy release/libs/rpda/
           cp LICENSE release/
           cp README.md release/
           
@@ -61,11 +65,13 @@ jobs:
           fi
           echo "" >> changelog.md
           echo "### 📦 Included files:" >> changelog.md
-          echo "- \`ambient_auto_start.rpy\` - auto-start ambient effects" >> changelog.md
-          echo "- \`ambient_config.rpy\` - settings and configuration" >> changelog.md
-          echo "- \`ambient_integration.rpy\` - RenPy integration" >> changelog.md
-          echo "- \`ambient_templates.rpy\` - templates for creating effects" >> changelog.md
           echo "- \`dynamic_ambient.rpy\` - main module" >> changelog.md
+          echo "- \`ambient_auto_start.rpy\` - auto-start ambient effects" >> changelog.md
+          echo "- \`ambient_integration.rpy\` - RenPy integration" >> changelog.md
+          echo "- \`debug_ambient.rpy\` - debug overlay" >> changelog.md
+          echo "- \`audio_assets.yaml\` - audio assets configuration" >> changelog.md
+          echo "- \`arrangements.yaml\` - arrangements configuration" >> changelog.md
+          echo "- \`libs/rpda/02-rpda-cds.rpy\` - CDS implementation" >> changelog.md
           echo "- \`LICENSE\` - license file" >> changelog.md
           echo "- \`README.md\` - documentation" >> changelog.md
           echo "" >> changelog.md
