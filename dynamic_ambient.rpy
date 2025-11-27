@@ -2,20 +2,116 @@ init python:
     import random
     import threading
     import time
+    import yaml # Requires pyyaml in game/python-packages
+
+    # Dynamic Channel Registration
+    # We read the config file manually here because we are in the init phase
+    # and the DynamicAmbientSystem class hasn't been instantiated yet.
+    
+    ambient_channels_list = []
+    
+    def init_ambient_channels():
+        global ambient_channels_list
+        try:
+            # We need to find the file path manually since renpy.file might not be fully ready 
+            # or we just want to be safe. But renpy.file usually works in init.
+            # Let's try to load the yaml content.
+            
+            # Default count if loading fails
+            track_count = 6 
+            
+            try:
+                with renpy.file("ёaudio_assets.yaml") as f:
+                    config = yaml.safe_load(f)
+                    tracks = config.get('tracks', {})
+                    track_count = len(tracks)
+                    # Add a buffer for layers or extra sounds
+                    track_count += 2
+            except Exception as e:
+                print(f"DynamicAmbientSystem: Warning - Could not load audio_assets.yaml for channel init: {e}")
+                print("DynamicAmbientSystem: Using default channel count (6).")
+            
+            print(f"DynamicAmbientSystem: Registering {track_count} ambient channels.")
+            
+            for i in range(track_count):
+                channel_name = f"ambient_{i+1}"
+                ambient_channels_list.append(channel_name)
+                
+                # Check if channel exists to avoid re-registration errors on reload
+                # Note: renpy.music.register_channel is generally safe to call multiple times,
+                # but explicit check is better if possible. 
+                # However, Ren'Py doesn't have a public 'has_channel' API easily accessible here.
+                # We'll just register it. Ren'Py handles re-registration gracefully usually.
+                renpy.music.register_channel(channel_name, "music", loop=True)
+                
+        except Exception as e:
+            print(f"DynamicAmbientSystem: Critical Error in channel init: {e}")
+
+    # Run initialization
+    init_ambient_channels()
+
+    # Register main theme channel
+    renpy.music.register_channel("main_theme", "music", loop=False)
     
     class DynamicAmbientSystem:
         """
         Dynamic ambient system for RenPy
         Manages playback of multiple audio tracks with configurable parameters
+        and supports Arrangement States for complex audio scenes.
         """
         
+        class ArrangementState:
+            """
+            Defines a specific state of the ambient system (an Arrangement).
+            """
+            def __init__(self, name, tracks_config, duration=None, auto_next=None, layers=None, on_enter=None, on_exit=None):
+                self.name = name
+                # tracks_config: dict { track_id: { 'volume': 1.0, ... } }
+                self.tracks_config = tracks_config 
+                self.duration = duration
+                self.auto_next = auto_next
+                self.layers = layers or {} # dict { layer_name: { track_id: {volume...} } }
+                self.on_enter = on_enter
+                self.on_exit = on_exit
+
+        
+        def __getstate__(self):
+            """Prepare state for pickling (save/reload)"""
+            state = self.__dict__.copy()
+            # Remove unpicklable threading.Timer objects
+            keys_to_remove = ['active_timers', 'track_timers', 'arrangement_timer', 'main_theme_timer']
+            for key in keys_to_remove:
+                if key in state:
+                    del state[key]
+            return state
+
+        def __setstate__(self, state):
+            """Restore state after unpickling"""
+            self.__dict__.update(state)
+            # Re-initialize timer containers
+            self.active_timers = []
+            self.track_timers = {}
+            self.arrangement_timer = None
+            self.main_theme_timer = None
+            
+            # Restart volume loop if needed
+            if self.is_active or self.is_fading_out:
+                # We need to delay this slightly to ensure Ren'Py audio system is ready
+                # But since this runs in python context, it might be fine.
+                # Safer to just call it.
+                self._volume_update_loop()
+
         def __init__(self):
             # Main system settings
             self.is_active = False
+            self.is_fading_out = False # New state for smooth stop
             self.is_main_menu = True
             self.base_volume = 0.7
             self.fade_duration = 2.0
             self.minimum_volume = 0.00  # Minimum volume for random tracks
+            
+            # Ambient channels reference
+            self.ambient_channels = ambient_channels_list
             
             # System runtime tracking
             self.ambient_start_time = 0
@@ -40,10 +136,28 @@ init python:
             # Storage for tracks and their states
             self.tracks = {}
             self.track_states = {}
+            self.tracks = {}
+            self.track_states = {}
             self.track_timers = {}
+            
+            # Audio Asset Registry
+            self.audio_assets = {} # track_id -> filename OR list of filenames
+            
+            # Arrangement System
+            self.arrangements = {}
+            self.active_arrangement = None
+            self.active_layers = set()
+            self.arrangement_timer = None # Timer for auto_next
+            self.arrangement_queue = [] # For scheduled transitions
+
             
             # List of all active timers for proper cleanup
             self.active_timers = []
+            
+            # RenPy channel settings (must match those registered in init python)
+            # NOTE: self.ambient_channels is already assigned to the global ambient_channels_list
+            # at the beginning of __init__. This block was redundant and hardcoded.
+            # self.ambient_channels = [...] - REMOVED
             
             # Main menu theme settings
             self.main_theme = {
@@ -55,37 +169,283 @@ init python:
                 'is_playing': False
             }
             
-            # RenPy channel settings
-            self.ambient_channels = [
-                "ambient_1", "ambient_2", "ambient_3", 
-                "ambient_4", "ambient_5", "ambient_6"
-            ]
+            # Load configuration from YAML
+            self.load_config()
+
+        def load_config(self):
+            """Loads configuration from YAML files"""
+            try:
+                # Load Audio Assets
+                with renpy.file("audio_assets.yaml") as f:
+                    assets_config = yaml.safe_load(f)
+                    
+                    # Process defaults if needed (currently unused but good for future)
+                    defaults = assets_config.get('defaults', {})
+                    
+                    # Process tracks
+                    for track_id, config in assets_config.get('tracks', {}).items():
+                        # Handle both single file and list of files
+                        files = config.get('files')
+                        if not files:
+                            files = config.get('file')
+                            
+                        self.configure_track(
+                            track_id=track_id,
+                            filename=files, # Pass raw value, configure_track will handle it
+                            track_type=config.get('type', 'random'),
+                            volume=config.get('volume', 1.0),
+                            play_chance=config.get('chance', 0.5),
+                            min_duration=config.get('interval', [30, 120])[0],
+                            max_duration=config.get('interval', [30, 120])[1],
+                            fade_in_time=config.get('fade_in', 3.0),
+                            fade_out_time=config.get('fade_out', 3.0)
+                        )
+                        
+                    # Process main theme
+                    main_theme_config = assets_config.get('main_theme')
+                    if main_theme_config:
+                        self.set_main_theme(
+                            filename=main_theme_config.get('file'),
+                            duration=main_theme_config.get('duration', 60),
+                            volume=main_theme_config.get('volume', 0.8),
+                            fade_in_time=main_theme_config.get('fade_in', 2.0),
+                            fade_out_time=main_theme_config.get('fade_out', 3.0),
+                            after_theme_arrangement=main_theme_config.get('after_theme_arrangement')
+                        )
+
+                # Load Arrangements
+                with renpy.file("arrangements.yaml") as f:
+                    arr_config = yaml.safe_load(f)
+                    
+                    for name, data in arr_config.get('arrangements', {}).items():
+                        self.register_arrangement(
+                            name=name,
+                            tracks_config=data.get('tracks', {}),
+                            duration=data.get('duration'),
+                            auto_next=data.get('auto_next'),
+                            layers=data.get('layers'),
+                            on_enter=None, # Callbacks not supported in YAML yet
+                            on_exit=None
+                        )
+                        
+                print("DynamicAmbientSystem: Configuration loaded successfully.")
+                
+            except Exception as e:
+                print(f"DynamicAmbientSystem: Error loading configuration: {e}")
+                # Fallback or re-raise depending on severity. 
+                # For now, print error so user sees it in console.
+
+        def register_arrangement(self, name, tracks_config, duration=None, auto_next=None, layers=None, on_enter=None, on_exit=None):
+            """ 
+            Registers a new arrangement state.
             
-            # Register channels in RenPy
-            for channel in self.ambient_channels:
-                renpy.music.register_channel(channel, "music", loop=True)
+            name: Unique name for the arrangement
+            tracks_config: Dict of track_id -> {volume, ...}
+            duration: Duration in seconds before auto-next (optional)
+            auto_next: Name of next arrangement (optional)
+            layers: Dict of layer_name -> tracks_config (optional)
+            on_enter: Callback when entering this state
+            on_exit: Callback when exiting this state
+            """
+            self.arrangements[name] = self.ArrangementState(name, tracks_config, duration, auto_next, layers, on_enter, on_exit)
+
+        def register_audio(self, track_id, filename):
+            """
+            Registers an audio asset with a unique ID.
+            filename: Can be a string or a list of strings (for random containers)
+            """
+            self.audio_assets[track_id] = filename
+
+        def play_arrangement(self, name, fade_time=None):
+            """
+            Transitions to the specified arrangement.
             
-            # Separate channel for main theme
-            renpy.music.register_channel("main_theme", "music", loop=False)
+            name: Name of the arrangement to play
+            fade_time: Override default fade time (optional)
+            """
+            # Auto-start system if not active
+            if not self.is_active:
+                self.start_ambient()
+            
+            # Clear fading out state if it was stuck
+            self.is_fading_out = False
+
+            if name not in self.arrangements:
+                print(f"Arrangement '{name}' not found.")
+                return
+
+            target_arrangement = self.arrangements[name]
+            
+            # Cancel existing arrangement timer
+            if self.arrangement_timer:
+                self.arrangement_timer.cancel()
+                self.arrangement_timer = None
+
+            # Handle Exit of previous arrangement
+            if self.active_arrangement and self.active_arrangement.on_exit:
+                try:
+                    self.active_arrangement.on_exit()
+                except Exception as e:
+                    print(f"Error in on_exit for {self.active_arrangement.name}: {e}")
+
+            self.active_arrangement = target_arrangement
+            self.active_layers.clear() # Reset layers on new arrangement
+            
+            # Handle Enter of new arrangement
+            if target_arrangement.on_enter:
+                try:
+                    target_arrangement.on_enter()
+                except Exception as e:
+                    print(f"Error in on_enter for {target_arrangement.name}: {e}")
+
+            # Apply track configurations
+            self._apply_arrangement_state(target_arrangement, fade_time)
+            
+            # Schedule auto-next if defined
+            if target_arrangement.duration and target_arrangement.auto_next:
+                self.arrangement_timer = self._create_timer(
+                    target_arrangement.duration, 
+                    lambda: self.play_arrangement(target_arrangement.auto_next, fade_time)
+                )
+                self.arrangement_timer.start()
+
+        def set_layer(self, layer_name, active=True, fade_time=None):
+            """
+            Enables or disables a layer in the current arrangement.
+            """
+            if not self.active_arrangement:
+                return
+                
+            if layer_name not in self.active_arrangement.layers:
+                print(f"Layer '{layer_name}' not found in arrangement '{self.active_arrangement.name}'")
+                return
+                
+            if active:
+                self.active_layers.add(layer_name)
+            else:
+                self.active_layers.discard(layer_name)
+                
+            # Re-apply arrangement state to update volumes
+            self._apply_arrangement_state(self.active_arrangement, fade_time)
+
+        def _apply_arrangement_state(self, arrangement, fade_time_override=None):
+            """
+            Applies the volume and state settings for the current arrangement.
+            """
+            if not self.is_active:
+                return
+
+            # Build complete set of allowed tracks and their configs
+            # Start with base arrangement
+            active_tracks_config = arrangement.tracks_config.copy()
+            
+            # Merge active layers
+            for layer_name in self.active_layers:
+                if layer_name in arrangement.layers:
+                    layer_config = arrangement.layers[layer_name]
+                    # Merge layer config (overwriting base if track exists)
+                    active_tracks_config.update(layer_config)
+
+            # 1. Identify tracks that should be playing
+            for track_id, config in active_tracks_config.items():
+                if track_id in self.tracks:
+                    track_data = self.tracks[track_id]
+                    
+                    # Determine target volume
+                    vol_multiplier = config.get('volume', 1.0)
+                    target_vol = track_data['volume'] * self.base_volume * vol_multiplier
+                    
+                    # DYNAMIC RECONFIGURATION
+                    # Check if arrangement overrides track parameters
+                    original_type = track_data.get('type')
+                    if 'type' in config:
+                        track_data['type'] = config['type']
+                    else:
+                        # Reset to default if not specified
+                        track_data['type'] = track_data.get('default_type', 'random')
+
+                    if 'play_chance' in config:
+                        track_data['play_chance'] = config['play_chance']
+                    else:
+                        track_data['play_chance'] = track_data.get('default_play_chance', 0.5)
+                        
+                    if 'min_duration' in config:
+                        track_data['min_duration'] = config['min_duration']
+                    else:
+                        track_data['min_duration'] = track_data.get('default_min_duration', 30)
+                        
+                    if 'max_duration' in config:
+                        track_data['max_duration'] = config['max_duration']
+                    else:
+                        track_data['max_duration'] = track_data.get('default_max_duration', 120)
+                    
+                    # If track is not playing, start it
+                    if not track_data['is_playing']:
+                        self._play_track(track_id) # Starts at 0 volume
+                    
+                    # Set target volume
+                    if track_data['type'] == 'random':
+                        # For random tracks, we only set the POTENTIAL max volume (via volume multiplier)
+                        # But the actual target volume should be minimum_volume initially,
+                        # unless it's already elevated by the wave system.
+                        
+                        # Store the intended max volume for when it gets elevated
+                        track_data['max_volume_multiplier'] = vol_multiplier
+                        
+                        if track_data.get('is_elevated', False):
+                            # If already elevated, update to new max
+                            track_data['target_volume'] = target_vol
+                        else:
+                            # If not elevated, keep at minimum (or fade to minimum if it was playing)
+                            track_data['target_volume'] = self.minimum_volume
+                    else:
+                        # Mandatory tracks go straight to target
+                        track_data['target_volume'] = target_vol
+                        
+                    print(f"DEBUG: Track {track_id} target_volume: {track_data['current_volume']:.2f} -> {track_data['target_volume']:.2f}, type={track_data['type']}")
+                    
+                    # Mark as part of arrangement (implicitly handled by strict isolation check below)
+                    
+                    # Apply fade override if provided
+                    if fade_time_override is not None:
+                        track_data['temp_fade_time'] = fade_time_override
+                    
+            # 2. Strict Isolation: Identify tracks that should NOT be playing
+            for track_id, track_data in self.tracks.items():
+                if track_id not in active_tracks_config:
+                    # If it's playing, fade it out
+                    if track_data['is_playing']:
+                        track_data['target_volume'] = 0.0
+                        if fade_time_override is not None:
+                            track_data['temp_fade_time'] = fade_time_override
+                        # if target == 0.0 and current == 0.0: stop_track_completely
+
+        def schedule_arrangement(self, name, delay):
+            """
+            Schedules an arrangement transition after a delay.
+            """
+            self._create_timer(delay, lambda: self.play_arrangement(name)).start()
+
         
-        def add_track(self, track_id, filename, track_type="random", 
+        def configure_track(self, track_id, filename=None, track_type="random", 
                         volume=1.0, play_chance=0.5, min_duration=30, 
                         max_duration=120, fade_in_time=3.0, fade_out_time=3.0):
             """
-            Adds track to the ambient system
-            
-            track_id: unique track identifier
-            filename: path to audio file
-            track_type: "mandatory" (always plays) or "random" (plays occasionally)
-            volume: base track volume (0.0-1.0)
-            play_chance: playback chance for random tracks (0.0-1.0)
-            min_duration: minimum playback duration (seconds)
-            max_duration: maximum playback duration (seconds)
-            fade_in_time: fade in duration (seconds)
-            fade_out_time: fade out duration (seconds)
+            Configures a track for the ambient system.
+            If filename is None, looks it up in audio_assets.
             """
+            
+            # Resolve filename
+            final_filename = filename
+            if final_filename is None:
+                final_filename = self.audio_assets.get(track_id)
+                
+            if final_filename is None:
+                print(f"Error: Track ID '{track_id}' has no filename and is not in registry.")
+                return
+
             self.tracks[track_id] = {
-                'filename': filename,
+                'filename': final_filename,
                 'type': track_type,
                 'volume': volume,
                 'play_chance': play_chance,
@@ -93,6 +453,12 @@ init python:
                 'max_duration': max_duration,
                 'fade_in_time': fade_in_time,
                 'fade_out_time': fade_out_time,
+                # Store defaults for dynamic reconfiguration resets
+                'default_type': track_type,
+                'default_play_chance': play_chance,
+                'default_min_duration': min_duration,
+                'default_max_duration': max_duration,
+                
                 'channel': None,
                 'current_volume': 0.0,
                 'target_volume': 0.0,
@@ -107,7 +473,7 @@ init python:
             }
         
         def set_main_theme(self, filename, duration=60, volume=0.8, 
-                            fade_in_time=2.0, fade_out_time=3.0):
+                            fade_in_time=2.0, fade_out_time=3.0, after_theme_arrangement=None):
             """
             Sets main menu theme
             
@@ -116,12 +482,14 @@ init python:
             volume: volume level (0.0-1.0)
             fade_in_time: fade in duration
             fade_out_time: fade out duration
+            after_theme_arrangement: name of arrangement to play after theme
             """
             self.main_theme['filename'] = filename
             self.main_theme['duration'] = duration
             self.main_theme['volume'] = volume
             self.main_theme['fade_in_time'] = fade_in_time
             self.main_theme['fade_out_time'] = fade_out_time
+            self.main_theme['after_theme_arrangement'] = after_theme_arrangement
         
         def start_with_main_theme(self):
             """
@@ -187,7 +555,14 @@ init python:
             """Starts ambient after main theme"""
             self.main_theme['is_playing'] = False
             self._cancel_all_timers() # Clear timers before starting ambient
-            self.start_ambient()
+            
+            # Check if a specific arrangement is configured
+            if self.main_theme.get('after_theme_arrangement'):
+                print(f"DEBUG: Transitioning to arrangement '{self.main_theme['after_theme_arrangement']}' after theme.")
+                self.play_arrangement(self.main_theme['after_theme_arrangement'])
+            else:
+                # Fallback to old behavior (random start)
+                self.start_ambient()
 
         def start_ambient(self, delay_after_main_theme=0):
             """
@@ -211,11 +586,14 @@ init python:
             self._start_volume_manager()
         
         def stop_ambient(self, fade_out=True):
-            """
-            Stops ambient system
-            fade_out: smooth fade out on stop
-            """
+            """Stops ambient system (fade_out: smooth fade out on stop)"""
+
+
+            # Sync state with actual playing audio to ensure we control what we think we control
+            self._sync_state()
+
             self.is_active = False
+            self.active_arrangement = None # Clear active arrangement
             self.ambient_start_time = 0  # Reset start time
             self.last_update_time = 0
             
@@ -239,21 +617,30 @@ init python:
                 renpy.music.stop(channel="main_theme")
             
             if fade_out:
+                self.is_fading_out = True # Enable volume loop for fade out
+                
                 # Smoothly reduce volume of all tracks with individual timings
                 max_fade_time = 0
                 for track_id, track_data in self.tracks.items():
+                    print(f"DEBUG: Checking track {track_id}. Playing: {track_data['is_playing']}, Channel: {track_data['channel']}, Fade: {track_data['fade_out_time']}")
                     if track_data['is_playing']:
                         track_data['target_volume'] = 0.0
                         max_fade_time = max(max_fade_time, track_data['fade_out_time'])
                 
                 # Use maximum fade time + small buffer
-                if max_fade_time > 0:
-                    self._create_timer(max_fade_time + 0.5, self._stop_all_tracks).start()
-                else:
-                    self._stop_all_tracks()
+                # Ensure minimum fade time even if all tracks are at 0
+                if max_fade_time == 0:
+                    max_fade_time = 3.0  # Default minimum fade time
+                    
+                print(f"DEBUG: max_fade_time = {max_fade_time}, scheduling stop in {max_fade_time + 0.5}s")
+                self._create_timer(max_fade_time + 0.5, self._stop_all_tracks).start()
+                # Restart volume loop to process the fade
+                self._volume_update_loop()
             else:
                 self._stop_all_tracks()
         
+
+
         def _assign_channels(self):
             """Assigns channels to tracks"""
             channel_index = 0
@@ -303,8 +690,15 @@ init python:
             if not channel:
                 return
             
+            # Handle Random Containers (list of files)
+            filename = track_data['filename']
+            if isinstance(filename, list):
+                if not filename: # Empty list
+                    return
+                filename = random.choice(filename)
+            
             # Start track with zero volume
-            renpy.music.play(track_data['filename'], channel=channel, 
+            renpy.music.play(filename, channel=channel, 
                             loop=True, if_changed=False)
             renpy.music.set_volume(0.0, channel=channel)
             
@@ -325,8 +719,15 @@ init python:
             if not channel:
                 return
             
+            # Handle Random Containers (list of files)
+            filename = track_data['filename']
+            if isinstance(filename, list):
+                if not filename: # Empty list
+                    return
+                filename = random.choice(filename)
+            
             # Start track with minimum volume
-            renpy.music.play(track_data['filename'], channel=channel, 
+            renpy.music.play(filename, channel=channel, 
                             loop=True, if_changed=False)
             renpy.music.set_volume(self.minimum_volume, channel=channel)
             
@@ -350,8 +751,9 @@ init python:
             if track_data.get('is_elevated', False):
                 return
                 
-            # Elevate to normal volume
-            track_data['target_volume'] = track_data['volume'] * self.base_volume
+            # Elevate to normal volume (or arrangement-specific volume)
+            vol_multiplier = track_data.get('max_volume_multiplier', 1.0)
+            track_data['target_volume'] = track_data['volume'] * self.base_volume * vol_multiplier
             track_data['is_elevated'] = True
             track_data['elevation_start_time'] = time.time()  # Mark elevation time
             
@@ -445,6 +847,24 @@ init python:
                 # Cooldown hasn't passed - exit, new attempts will be after cooldown
                 return
                 
+            # STRICT ISOLATION: Check if track is allowed in current arrangement
+            if self.active_arrangement:
+                allowed = False
+                # Check base config
+                if track_id in self.active_arrangement.tracks_config:
+                    allowed = True
+                # Check active layers
+                if not allowed:
+                    for layer_name in self.active_layers:
+                        if layer_name in self.active_arrangement.layers:
+                            if track_id in self.active_arrangement.layers[layer_name]:
+                                allowed = True
+                                break
+                
+                if not allowed:
+                    return
+
+                
             # If no active wave or wave limit exhausted - start new wave
             if self.current_wave_limit == 0 or self.wave_elevation_count >= self.current_wave_limit:
                 # If there are active elevated tracks, exit - wait for wave completion
@@ -504,10 +924,17 @@ init python:
         
         def _stop_all_tracks(self):
             """Stops all tracks"""
-            for track_id in list(self.tracks.keys()):
-                track_data = self.tracks[track_id]
-                if track_data['channel']:
-                    renpy.music.stop(channel=track_data['channel'])
+            self.is_fading_out = False # Reset fade out state
+            
+            # Force stop all registered ambient channels with a small fadeout
+            # This is a safety measure - by now tracks should be at 0 volume already
+            print("DEBUG: Force stopping all ambient channels")
+            for channel in self.ambient_channels:
+                # Use a small fadeout just in case track didn't reach 0 yet
+                renpy.music.stop(channel=channel, fadeout=1.5)
+                
+            # Reset track states
+            for track_id, track_data in self.tracks.items():
                 track_data['is_playing'] = False
                 track_data['current_volume'] = 0.0
                 track_data['target_volume'] = 0.0
@@ -529,7 +956,7 @@ init python:
         
         def _volume_update_loop(self):
             """Track volume update loop"""
-            if not self.is_active:
+            if not self.is_active and not self.is_fading_out:
                 return
             
             current_time = time.time()
@@ -541,24 +968,33 @@ init python:
                     
                     # For minimum_volume (0.0) requires precision, for others - 0.01
                     tolerance = 0.001 if target == self.minimum_volume else 0.01
+                    
                     if abs(current - target) > tolerance:
                         # Determine change speed based on fade time
+                        current_fade_time = track_data.get('temp_fade_time')
+                        
                         if target > current:
                             # Fade in - use fade_in_time
-                            fade_time = track_data['fade_in_time']
+                            fade_time = current_fade_time if current_fade_time is not None else track_data['fade_in_time']
                         else:
                             # Fade out - use fade_out_time
-                            fade_time = track_data['fade_out_time']
+                            fade_time = current_fade_time if current_fade_time is not None else track_data['fade_out_time']
                         
                         # Calculate change step for smooth transition
                         # Should reach target volume in fade_time seconds
-                        max_change_per_update = abs(target - current) / (fade_time * 10)  # 10 updates per second
+                        # If current volume is a guess (e.g. 0.5), we might be fading too fast or too slow.
+                        # To ensure it sounds like a fade, we limit the step size.
+                        
+                        updates_remaining = fade_time * 10
+                        if updates_remaining < 1: updates_remaining = 1
+                        
+                        max_change_per_update = abs(target - current) / updates_remaining
                         
                         # Limit change speed
                         if target > current:
-                            step = min(max_change_per_update, (target - current) * 0.15)
+                            step = min(max_change_per_update, 0.05) # Cap max step to 5% per tick
                         else:
-                            step = -min(max_change_per_update, (current - target) * 0.15)
+                            step = -min(max_change_per_update, 0.05)
                         
                         new_volume = current + step
                         
@@ -585,9 +1021,43 @@ init python:
                             self.tracks_fading_out.discard(track_id)
                             # Check wave completion
                             self._check_wave_completion()
+                            self._check_wave_completion()
+                            
+                        # Stop track if it reached 0 volume and is NOT in current arrangement
+                        if target == 0.0 and current == 0.0:
+                            # Check if track is allowed (in base or active layers)
+                            is_allowed = False
+                            if self.active_arrangement:
+                                if track_id in self.active_arrangement.tracks_config:
+                                    is_allowed = True
+                                else:
+                                    for layer_name in self.active_layers:
+                                        if layer_name in self.active_arrangement.layers and track_id in self.active_arrangement.layers[layer_name]:
+                                            is_allowed = True
+                                            break
+                            
+                            if not is_allowed:
+                                self._stop_track_completely(track_id)
+                    
+                    # Clear temporary fade time if target reached
+                    if abs(current - target) <= tolerance and 'temp_fade_time' in track_data:
+                        del track_data['temp_fade_time']
+
             
             # Schedule next update
-            self._create_timer(0.1, self._volume_update_loop).start()
+            if self.is_active or self.is_fading_out:
+                self._create_timer(0.1, self._volume_update_loop).start()
+
+        def _stop_track_completely(self, track_id):
+            """Stops a track completely and resets its state"""
+            if track_id in self.tracks:
+                track_data = self.tracks[track_id]
+                if track_data['channel']:
+                    renpy.music.stop(channel=track_data['channel'])
+                track_data['is_playing'] = False
+                track_data['current_volume'] = 0.0
+                track_data['target_volume'] = 0.0
+
         
         def set_base_volume(self, volume):
             """Sets system base volume"""
@@ -704,11 +1174,38 @@ init python:
                     pass
             self.track_timers.clear()
 
-    # Create global system instance
-    ambient_system = DynamicAmbientSystem()
+        def _sync_state(self):
+            """Synchronizes internal state with actual audio state."""
+            # Create reverse lookup: filename -> track_id
+            filename_to_track = {}
+            for track_id, track_data in self.tracks.items():
+                if track_data['filename']:
+                    filename_to_track[track_data['filename']] = track_id
+            
+            # Scan all ambient channels
+            for channel in self.ambient_channels:
+                playing_file = renpy.music.get_playing(channel=channel)
+                
+                if playing_file:
+                    # Something is playing
+                    if playing_file in filename_to_track:
+                        track_id = filename_to_track[playing_file]
+                        track_data = self.tracks[track_id]
+                        
+                        # Restore state
+                        track_data['channel'] = channel
+                        track_data['is_playing'] = True
+
+                        # Estimate volume
+                        # Only adjust current_volume if we have no idea (e.g. it was 0 before reload)
+                        # If track already has some volume value, trust it to avoid spikes
+                        if track_data['current_volume'] == 0.0:
+                            # Set to a conservative value - prefer lower to avoid spikes
+                            # The fade-out loop will handle it from here
+                            track_data['current_volume'] = self.base_volume * track_data['volume'] * 0.3
 
 # Functions for convenient use in scripts
-define ambient = ambient_system 
+default ambient = DynamicAmbientSystem() 
 
 # Variable to store volume setting
 default ambient_volume_setting = 0.7
@@ -721,8 +1218,9 @@ label start_main_menu_ambient:
     
     # Set up tracks only once
     if not hasattr(store, 'ambient_configured'):
-        call setup_ambient
-        call setup_main_theme
+        # NOTE: Initialization is now automatic via YAML.
+        # call setup_ambient - REMOVED
+        # call setup_main_theme - REMOVED
         $ ambient_configured = True
     
     # Synchronize volume setting

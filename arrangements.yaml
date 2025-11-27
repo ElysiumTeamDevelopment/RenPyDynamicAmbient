@@ -1,0 +1,41 @@
+arrangements:
+  # 1. Intro -> Loop Example
+  calm_morning_intro:
+    duration: 10.0
+    auto_next: "calm_morning_loop"
+    tracks:
+      "1": { volume: 0.3 }
+      random_nature: { volume: 0.4 }
+
+  calm_morning_loop:
+    tracks:
+      "1": { volume: 0.5 }
+      random_wind: { volume: 0.6 }
+
+  # Main Menu Test Arrangement
+  main_menu_test:
+    tracks:
+      "1": { volume: 0.6 } # Mandatory
+      "2": { volume: 0.4 } # Mandatory
+      random_wind: { volume: 0.8 } # Random
+      random_nature: { volume: 0.5 } # Random
+      random_atmosphere: { volume: 0.7 } # Random
+
+  # 2. Layers Example
+  tense_evening:
+    tracks:
+      "2": { volume: 0.6 }
+      random_nature: { volume: 0.8 }
+    layers:
+      rain_layer:
+        tracks:
+          random_atmosphere: { volume: 0.9 }
+
+  # 3. Dynamic Reconfiguration Example
+  storm_override:
+    tracks:
+      "2": { volume: 0.5 }
+      random_wind:
+        volume: 0.9
+        type: "mandatory"
+        fade_in: 2.0
