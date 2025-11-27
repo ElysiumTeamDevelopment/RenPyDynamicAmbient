@@ -568,4 +568,5 @@ Created for RenPy projects with free use and modification permissions.
 *   **Arrangement System**: Introduced "Arrangements" for defining complex audio scenes with layers.
 *   **Strict Isolation**: Improved track management to ensure only relevant tracks play.
 *   **Random Containers**: Support for multiple files per track ID (random selection).
+*   **Automatic Initialization**: Tracks are automatically initialized from YAML configuration.
 *   **Debug UI**: Enhanced debug screen with `ambient debug ui`.
