@@ -1,572 +1,167 @@
-# Система динамического эмбиента для RenPy
+# Система динамического эмбиента для Ren'Py
 
 [English](../README.md) | **Русский**
 
-## Описание
+Гибкая система управления динамическим эмбиентом для Ren'Py 8.4+, позволяющая воспроизводить несколько аудиодорожек одновременно с настраиваемыми параметрами случайности, громкости, плавными переходами и сложными аудио-сценами.
 
-Гибкая система управления динамическим эмбиентом, которая позволяет воспроизводить несколько аудиодорожек одновременно с настраиваемыми параметрами случайности, громкости и плавными переходами.
+**Версия:** 2.0.0  
+**CDS:** Ren'Py 8.5.0+  
+**Лицензия:** MIT
 
 ## Основные возможности
 
-- **Обязательные треки**: Воспроизводятся постоянно с момента запуска
-- **Случайные треки**: Воспроизводятся с настраиваемой вероятностью и длительностью
-- **Плавные переходы**: Все изменения громкости происходят плавно
-- **Управление громкостью**: Отдельная настройка громкости для каждого трека
-- **Основная тема меню**: Воспроизводится перед эмбиентом без наложения звуков
-- Может работать параллельно с музыкой игры
-- Разные конфиги эмбиента для разных локаций
+- **YAML конфигурация** — Не нужен Python-код, только чистые YAML-файлы
+- **Аранжировки** — Аудио-сцены как пресеты со слоями
+- **CDS команды** — Нативные команды Ren'Py: `ambient play`, `ambient layer`, `ambient stop`
+- **Обязательные треки** — Воспроизводятся постоянно с момента запуска
+- **Случайные треки** — Воспроизводятся с настраиваемой вероятностью через wave-систему
+- **Плавные переходы** — Все изменения громкости происходят плавно
+- **Слои** — Динамические группы треков (погода, напряжение, время суток)
+- **Строгая изоляция** — Треки вне текущей аранжировки автоматически останавливаются
+- **Random Containers** — Несколько файлов на трек для разнообразия
+- **Авто-переходы** — Аранжировки могут автоматически переключаться (интро → луп)
+- **Debug UI** — Оверлей мониторинга в реальном времени
 
-## Настройка и использование
+## Быстрый старт
 
-### 1. Настройка основной темы меню
+### 1. Установите PyYAML
 
-Установите основную тему, которая будет играть перед эмбиентом:
-
-```renpy
-$ ambient.set_main_theme(
-    filename="audio/main_theme.mp3",
-    duration=60,         # длительность в секундах
-    volume=0.8,          # громкость (0.0-1.0)
-    fade_in_time=2.0,    # время плавного появления
-    fade_out_time=4.0    # время плавного исчезновения
-)
+```bash
+pip install pyyaml -t game/python-packages
 ```
 
-### 2. Настройка треков эмбиента
+### 2. Скопируйте файлы
 
-В файле `ambient_config.rpy` находится лейбл `setup_ambient`, где настраиваются все треки:
+Скопируйте в папку `game/`:
+- `dynamic_ambient.rpy` (обязательно)
+- `audio_assets.yaml` (обязательно)
+- `arrangements.yaml` (обязательно)
+- `ambient_auto_start.rpy` (опционально — автозапуск в главном меню)
+- `ambient_integration.rpy` (опционально — UI настроек)
+- `libs/rpda/02-rpda-cds.rpy` (опционально — CDS команды)
 
-```renpy
-$ ambient.add_track(
-    track_id="уникальный_id",
-    filename="путь/к/файлу.ogg",
-    track_type="mandatory",  # или "random"
-    volume=0.7,              # громкость (0.0-1.0)
-    play_chance=0.3,         # шанс воспроизведения (только для random)
-    min_duration=30,         # минимальная длительность (секунды)
-    max_duration=120,        # максимальная длительность (секунды)
-    fade_in_time=3.0,        # время плавного появления
-    fade_out_time=3.0        # время плавного исчезновения
-)
+### 3. Настройте треки
+
+```yaml
+# audio_assets.yaml
+tracks:
+  forest_base:
+    file: "audio/forest.ogg"
+    type: "mandatory"
+    volume: 0.6
+
+  birds:
+    file: "audio/birds.ogg"
+    type: "random"
+    volume: 0.5
+    chance: 0.4
+    interval: [30, 90]
 ```
 
-### 2. Типы треков
+### 4. Создайте аранжировки
 
-#### Обязательные треки (mandatory)
-- Запускаются сразу при старте системы
-- Играют постоянно до остановки системы
-- Подходят для базового фона
-
-#### Случайные треки (random)
-- Воспроизводятся с определённой вероятностью
-- Имеют ограниченную длительность
-- Добавляют динамику и разнообразие
-
-### 3. Запуск системы
-
-#### Автоматический запуск в главном меню
-Система автоматически запускается в главном меню через лейбл `start_main_menu_ambient`.
-Сначала играет основная тема, затем плавно переходит в эмбиент.
-
-#### Ручной запуск
-
-**Запуск с основной темой:**
-```renpy
-# Последовательно: основная тема → эмбиент
-$ ambient.start_with_main_theme()
+```yaml
+# arrangements.yaml
+arrangements:
+  forest_day:
+    tracks:
+      forest_base: { volume: 0.6 }
+      birds: { volume: 0.5 }
+    layers:
+      rain:
+        rain_sound: { volume: 0.7 }
 ```
 
-**Запуск только эмбиента:**
-```renpy
-# Немедленный запуск эмбиента
-$ ambient.start_ambient()
+### 5. Используйте в сценарии
 
-# Запуск с задержкой
-$ ambient.start_ambient(delay_after_main_theme=5)
+```renpy
+label forest_scene:
+    ambient play "forest_day"
+    "Вы входите в лес..."
+    
+    ambient layer "rain" on fade 3.0
+    "Начинается дождь."
 ```
 
-### 4. CDS (Команды сценария)
+## CDS команды (Ren'Py 8.5.0+)
 
-Система поддерживает удобные команды Ren'Py для управления эмбиентом прямо из сценария.
-
-#### Запуск аранжировки
 ```renpy
-# Запуск аранжировки со стандартным переходом
-ambient play "forest_morning"
-
-# Запуск с кастомным временем перехода
-ambient play "forest_night" fade 5.0
+ambient play "arrangement_name"       # Воспроизвести аранжировку
+ambient play "name" fade 3.0          # С кастомным временем перехода
+ambient stop                          # Остановить систему
+ambient layer "rain" on               # Включить слой
+ambient layer "rain" off fade 2.0     # Выключить слой с переходом
+ambient volume 0.5                    # Установить громкость
+ambient pause                         # Пауза
+ambient resume                        # Продолжить
+ambient schedule "name" in 30.0       # Запланировать переход
+ambient debug ui                      # Переключить debug overlay
 ```
 
-#### Остановка системы
+## Python API
+
 ```renpy
-# Остановка системы
-ambient stop
-```
-
-#### Управление слоями
-```renpy
-# Включить слой
-ambient layer "rain" on
-
-# Выключить слой с переходом
-ambient layer "rain" off fade 2.0
-```
-
-#### Громкость и управление
-```renpy
-# Установить громкость (0.0 - 1.0)
-ambient volume 0.5
-
-# Пауза и возобновление
-ambient pause
-ambient resume
-```
-
-#### Планирование
-```renpy
-# Запланировать запуск аранжировки через X секунд
-ambient schedule "forest_night" in 60.0
-```
-
-#### Отладка
-```renpy
-# Показать инфо
-ambient debug info
-
-# Переключить UI отладки
-ambient debug ui
-```
-
-### 5. Управление через Python API
-
-#### Остановка
-```renpy
-# Плавная остановка
+$ ambient.play_arrangement("forest_day")
+$ ambient.play_arrangement("forest_day", fade_time=3.0)
+$ ambient.set_layer("rain", True, fade_time=2.0)
+$ ambient.set_base_volume(0.5)
 $ ambient.stop_ambient()
-
-# Мгновенная остановка
-$ ambient.stop_ambient(fade_out=False)
-```
-
-#### Пауза и возобновление
-```renpy
 $ ambient.pause_ambient()
 $ ambient.resume_ambient()
 ```
 
-#### Изменение громкости
-```renpy
-$ ambient.set_base_volume(0.5)  # 50% от базовой громкости
+## Демо-проект
+
+Полный демо-проект включён в `example/RPDA_Demo_Project/`. См. [Руководство по демо-проекту](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki/Demo-Project) для инструкций по запуску.
+
+## Документация
+
+Полная документация доступна на **[Wiki](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki)**:
+
+- [Установка](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki/Installation)
+- [Быстрый старт](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki/Quick-Start)
+- [Типы треков](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki/Track-Types)
+- [Аранжировки](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki/Arrangements)
+- [Слои](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki/Layers)
+- [Справочник CDS](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki/CDS-Reference)
+- [Python API](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki/Python-API)
+- [Справочник конфигурации](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki/Configuration-Reference)
+
+## Требования
+
+- **Ren'Py:** 8.4+ (основная система)
+- **Ren'Py:** 8.5.0+ (для CDS команд)
+- **PyYAML:** Требуется для парсинга YAML
+
+## Структура файлов
+
+```
+game/
+├── dynamic_ambient.rpy       # Основная система
+├── ambient_auto_start.rpy    # Автозапуск (опционально)
+├── ambient_integration.rpy   # UI настроек (опционально)
+├── audio_assets.yaml         # Конфигурация треков
+├── arrangements.yaml         # Конфигурация аранжировок
+└── libs/rpda/
+    └── 02-rpda-cds.rpy       # CDS команды (опционально)
 ```
 
-### 6. Интеграция с игрой
+## Changelog v2.0.0
 
-#### Запуск в определённых локациях
-```renpy
-label forest_location:
-    scene bg forest
-    
-    # Останавливаем текущий эмбиент
-    $ ambient.stop_ambient()
-    
-    # Настраиваем новый эмбиент для леса
-    $ ambient.add_track("forest_base", "audio/forest_base.ogg", "mandatory", 0.6)
-    $ ambient.add_track("birds", "audio/birds.ogg", "random", 0.4, 0.3, 20, 80)
-    
-    # Запускаем
-    $ ambient.start_ambient()
-    
-    "Вы заходите в лес..."
-    
-    return
-```
+- **YAML конфигурация** — Замена Python-конфигов на `audio_assets.yaml` и `arrangements.yaml`
+- **CDS команды** — Добавлены команды `ambient` для управления из сценария
+- **Система аранжировок** — Аудио-сцены со слоями и авто-переходами
+- **Строгая изоляция** — Треки вне аранжировки автоматически останавливаются
+- **Random Containers** — Несколько файлов на один ID трека
+- **Автоматическая инициализация** — Не нужны ручные вызовы setup
+- **Debug UI** — Улучшенная отладка через `ambient debug ui`
 
-#### Остановка при переходе в игру
-```renpy
-label start:
-    # Останавливаем эмбиент главного меню
-    call stop_main_menu_ambient
-    
-    # Начинаем игру
-    scene bg room
-    "Игра началась..."
-    
-    return
-```
+## Лицензия
 
-## Настройка параметров
+MIT License — Свободное использование и модификация в любых проектах.
 
-### Параметры трека
+## Ссылки
 
-| Параметр | Тип | Описание |
-|----------|-----|----------|
-| track_id | string | Уникальный идентификатор трека |
-| filename | string | Путь к аудиофайлу |
-| track_type | string | "mandatory" или "random" |
-| volume | float | Громкость трека (0.0-1.0) |
-| play_chance | float | Вероятность воспроизведения (0.0-1.0) |
-| min_duration | int | Минимальная длительность (секунды) |
-| max_duration | int | Максимальная длительность (секунды) |
-| fade_in_time | float | Время плавного появления |
-| fade_out_time | float | Время плавного исчезновения |
-
-### Рекомендуемые настройки
-
-#### Для базового фона
-```renpy
-track_type="mandatory"
-volume=0.4-0.7
-fade_in_time=4.0-8.0
-fade_out_time=3.0-6.0
-```
-
-#### Для атмосферных эффектов
-```renpy
-track_type="random"
-volume=0.3-0.8
-play_chance=0.2-0.5
-min_duration=30-60
-max_duration=120-300
-fade_in_time=2.0-6.0
-fade_out_time=2.0-4.0
-```
-
-## Шаблоны треков
-
-Вы можете использовать готовые шаблоны для типовых наборов эмбиента (например, улица, лес и т.д.).
-
-Шаблоны определяются в файле `ambient_templates.rpy` в виде словаря. Пример:
-
-```python
-init python:
-    ambient_templates = {
-        "street_ambient": [
-            {"track_id": "street_base", "filename": "audio/street_base.ogg", "track_type": "mandatory", "volume": 0.5},
-            {"track_id": "car_horn", "filename": "audio/car_horn.ogg", "track_type": "random", "volume": 0.3},
-        ],
-        "forest_ambient": [
-            {"track_id": "forest_base", "filename": "audio/forest_base.ogg", "track_type": "mandatory", "volume": 0.6},
-            {"track_id": "birds", "filename": "audio/birds.ogg", "track_type": "random", "volume": 0.4},
-        ],
-    }
-```
-
-Чтобы применить шаблон, используйте:
-
-```renpy
-$ ambient.use_template("street_ambient")
-$ ambient.start_ambient()
-```
-
-Это добавит все треки из шаблона в систему. Вы можете создавать и использовать любое количество шаблонов для разных локаций или ситуаций.
-
-## Управление через интерфейс
-
-### Экран настроек эмбиента
-Доступен через "Настройки" → "Настройки эмбиента":
-
-- **Слайдер громкости**: Регулирует общую громкость системы
-- **Статус системы**: Показывает активна ли система
-- **Кнопки управления**: Запуск, остановка, пауза, продолжение
-- **Информация о треках**: Текущее состояние каждого трека
-
-### Интеграция с настройками игры
-Кнопка "Настройки эмбиента" добавляется в стандартный экран настроек RenPy.
-
-## Технические особенности
-
-### Каналы аудио
-Система использует 7 отдельных каналов аудио:
-- main_theme - для основной темы меню
-- ambient_1 до ambient_6 - для треков эмбиента
-- Каналы регистрируются автоматически при инициализации
-
-### Плавные переходы
-- Все изменения громкости происходят плавно
-- Частота обновления: 10 раз в секунду
-- Экспоненциальная интерполяция для естественного звучания
-
-### Многопоточность
-- Система использует Threading для независимого управления
-- Таймеры для планирования случайных треков
-- Не блокирует основной поток игры
-
-## Отключение автозапуска в главном меню
-
-Если вы не хотите автоматический эмбиент в главном меню:
-
-1. **Не включайте** файл `ambient_auto_start.rpy`
-2. **Или закомментируйте** строки автозапуска в нём:
-```renpy
-# Закомментируйте эти строки для отключения автозапуска:
-# on "show" action Function(renpy.call_in_new_context, "start_main_menu_ambient")
-# on "hide" action Function(ambient.stop_ambient)
-```
-
-Таким образом вы сможете использовать систему только там, где явно вызовете её через `$ ambient.start_ambient()`.
-
-## Примеры использования
-
-### Эмбиент главного меню с основной темой
-```renpy
-# Настройка основной темы
-$ ambient.set_main_theme("audio/main_theme.mp3", 45, 0.8, 2.0, 3.0)
-
-# Базовая атмосфера эмбиента
-$ ambient.add_track("menu_base", "audio/menu_ambient.ogg", "mandatory", 0.5)
-
-# Случайные дополнения
-$ ambient.add_track("wind", "audio/wind.ogg", "random", 0.3, 0.4, 45, 120)
-$ ambient.add_track("distant_sound", "audio/distant.ogg", "random", 0.6, 0.2, 60, 180)
-
-# Запуск последовательности
-$ ambient.start_with_main_theme()
-```
-
-### Эмбиент для разных локаций
-```renpy
-# Городская локация
-$ ambient.add_track("city_traffic", "audio/traffic.ogg", "mandatory", 0.4)
-$ ambient.add_track("city_voices", "audio/voices.ogg", "random", 0.3, 0.5)
-
-# Природная локация  
-$ ambient.add_track("forest_base", "audio/forest.ogg", "mandatory", 0.6)
-$ ambient.add_track("birds", "audio/birds.ogg", "random", 0.4, 0.3)
-$ ambient.add_track("wind_trees", "audio/wind_trees.ogg", "random", 0.5, 0.4)
-```
-
-## Рекомендации по использованию
-
-1. **Качество аудио**: Используйте OGG формат для лучшей совместимости
-2. **Длительность**: Обязательные треки должны быть зацикленными
-3. **Громкость**: Оставляйте запас по громкости для наложения треков
-4. **Частота**: Не делайте случайные треки слишком частыми
-5. **Производительность**: Ограничьте количество одновременных треков
-
-## Устранение неполадок
-
-### Треки не воспроизводятся
-- Проверьте правильность путей к файлам
-- Убедитесь, что файлы в формате OGG
-- Проверьте, что система запущена
-
-### Слишком громко/тихо
-- Настройте параметр volume для отдельных треков
-- Используйте ambient.set_base_volume() для общей регулировки
-- Проверьте настройки громкости в RenPy
-
-### Производительность
-- Ограничьте количество одновременных треков
-- Используйте сжатые аудиофайлы
-- Оптимизируйте частоту обновления если нужно
-
-## Автор и лицензия
-# Останавливаем текущий эмбиент
-    $ ambient.stop_ambient()
-    
-    # Настраиваем новый эмбиент для леса
-    $ ambient.add_track("forest_base", "audio/forest_base.ogg", "mandatory", 0.6)
-    $ ambient.add_track("birds", "audio/birds.ogg", "random", 0.4, 0.3, 20, 80)
-    
-    # Запускаем
-    $ ambient.start_ambient()
-    
-    "Вы заходите в лес..."
-    
-    return
-```
-
-#### Остановка при переходе в игру
-```renpy
-label start:
-    # Останавливаем эмбиент главного меню
-    call stop_main_menu_ambient
-    
-    # Начинаем игру
-    scene bg room
-    "Игра началась..."
-    
-    return
-```
-
-<h2>Настройка параметров</h2>
-
-<h3>Параметры трека</h3>
-
-| Параметр | Тип | Описание |
-|----------|-----|----------|
-| track_id | string | Уникальный идентификатор трека |
-| filename | string | Путь к аудиофайлу |
-| track_type | string | "mandatory" или "random" |
-| volume | float | Громкость трека (0.0-1.0) |
-| play_chance | float | Вероятность воспроизведения (0.0-1.0) |
-| min_duration | int | Минимальная длительность (секунды) |
-| max_duration | int | Максимальная длительность (секунды) |
-| fade_in_time | float | Время плавного появления |
-| fade_out_time | float | Время плавного исчезновения |
-
-<h3>Рекомендуемые настройки</h3>
-
-<h4>Для базового фона</h4>
-```renpy
-track_type="mandatory"
-volume=0.4-0.7
-fade_in_time=4.0-8.0
-fade_out_time=3.0-6.0
-```
-
-<h4>Для атмосферных эффектов</h4>
-```renpy
-track_type="random"
-volume=0.3-0.8
-play_chance=0.2-0.5
-min_duration=30-60
-max_duration=120-300
-fade_in_time=2.0-6.0
-fade_out_time=2.0-4.0
-```
-
-<h2>Шаблоны треков</h2>
-
-Вы можете использовать готовые шаблоны для типовых наборов эмбиента (например, улица, лес и т.д.).
-
-Шаблоны определяются в файле `ambient_templates.rpy` в виде словаря. Пример:
-
-```python
-init python:
-    ambient_templates = {
-        "street_ambient": [
-            {"track_id": "street_base", "filename": "audio/street_base.ogg", "track_type": "mandatory", "volume": 0.5},
-            {"track_id": "car_horn", "filename": "audio/car_horn.ogg", "track_type": "random", "volume": 0.3},
-        ],
-        "forest_ambient": [
-            {"track_id": "forest_base", "filename": "audio/forest_base.ogg", "track_type": "mandatory", "volume": 0.6},
-            {"track_id": "birds", "filename": "audio/birds.ogg", "track_type": "random", "volume": 0.4},
-        ],
-    }
-```
-
-Чтобы применить шаблон, используйте:
-
-```renpy
-$ ambient.use_template("street_ambient")
-$ ambient.start_ambient()
-```
-
-Это добавит все треки из шаблона в систему. Вы можете создавать и использовать любое количество шаблонов для разных локаций или ситуаций.
-
-<h2>Управление через интерфейс</h2>
-
-<h3>Экран настроек эмбиента</h3>
-Доступен через "Настройки" → "Настройки эмбиента":
-
-- **Слайдер громкости**: Регулирует общую громкость системы
-- **Статус системы**: Показывает активна ли система
-- **Кнопки управления**: Запуск, остановка, пауза, продолжение
-- **Информация о треках**: Текущее состояние каждого трека
-
-<h3>Интеграция с настройками игры</h3>
-Кнопка "Настройки эмбиента" добавляется в стандартный экран настроек RenPy.
-
-<h2>Технические особенности</h2>
-
-<h3>Каналы аудио</h3>
-Система использует 7 отдельных каналов аудио:
-- main_theme - для основной темы меню
-- ambient_1 до ambient_6 - для треков эмбиента
-- Каналы регистрируются автоматически при инициализации
-
-<h3>Плавные переходы</h3>
-- Все изменения громкости происходят плавно
-- Частота обновления: 10 раз в секунду
-- Экспоненциальная интерполяция для естественного звучания
-
-<h3>Многопоточность</h3>
-- Система использует Threading для независимого управления
-- Таймеры для планирования случайных треков
-- Не блокирует основной поток игры
-
-<h2>Отключение автозапуска в главном меню</h2>
-
-Если вы не хотите автоматический эмбиент в главном меню:
-
-1. **Не включайте** файл `ambient_auto_start.rpy`
-2. **Или закомментируйте** строки автозапуска в нём:
-```renpy
-# Закомментируйте эти строки для отключения автозапуска:
-# on "show" action Function(renpy.call_in_new_context, "start_main_menu_ambient")
-# on "hide" action Function(ambient.stop_ambient)
-```
-
-Таким образом вы сможете использовать систему только там, где явно вызовете её через `$ ambient.start_ambient()`.
-
-<h2>Примеры использования</h2>
-
-<h3>Эмбиент главного меню с основной темой</h3>
-```renpy
-# Настройка основной темы
-$ ambient.set_main_theme("audio/main_theme.mp3", 45, 0.8, 2.0, 3.0)
-
-# Базовая атмосфера эмбиента
-$ ambient.add_track("menu_base", "audio/menu_ambient.ogg", "mandatory", 0.5)
-
-# Случайные дополнения
-$ ambient.add_track("wind", "audio/wind.ogg", "random", 0.3, 0.4, 45, 120)
-$ ambient.add_track("distant_sound", "audio/distant.ogg", "random", 0.6, 0.2, 60, 180)
-
-# Запуск последовательности
-$ ambient.start_with_main_theme()
-```
-
-<h3>Эмбиент для разных локаций</h3>
-```renpy
-# Городская локация
-$ ambient.add_track("city_traffic", "audio/traffic.ogg", "mandatory", 0.4)
-$ ambient.add_track("city_voices", "audio/voices.ogg", "random", 0.3, 0.5)
-
-# Природная локация  
-$ ambient.add_track("forest_base", "audio/forest.ogg", "mandatory", 0.6)
-$ ambient.add_track("birds", "audio/birds.ogg", "random", 0.4, 0.3)
-$ ambient.add_track("wind_trees", "audio/wind_trees.ogg", "random", 0.5, 0.4)
-```
-
-<h2>Рекомендации по использованию</h2>
-
-1. **Качество аудио**: Используйте OGG формат для лучшей совместимости
-2. **Длительность**: Обязательные треки должны быть зацикленными
-3. **Громкость**: Оставляйте запас по громкости для наложения треков
-4. **Частота**: Не делайте случайные треки слишком частыми
-5. **Производительность**: Ограничьте количество одновременных треков
-
-<h2>Устранение неполадок</h2>
-
-<h3>Треки не воспроизводятся</h3>
-- Проверьте правильность путей к файлам
-- Убедитесь, что файлы в формате OGG
-- Проверьте, что система запущена
-
-<h3>Слишком громко/тихо</h3>
-- Настройте параметр volume для отдельных треков
-- Используйте ambient.set_base_volume() для общей регулировки
-- Проверьте настройки громкости в RenPy
-
-<h3>Производительность</h3>
-- Ограничьте количество одновременных треков
-- Используйте сжатые аудиофайлы
-- Оптимизируйте частоту обновления если нужно
-
-<h2>Автор и лицензия</h2>
-
-Создано для RenPy проекта с возможностью свободного использования и модификации.
-
-<h2>Список изменений (Changelog)</h2>
-
-<h3>v2.0.0</h3>
-*   **YAML Конфигурация**: Замена Python-конфигов на `audio_assets.yaml` и `arrangements.yaml`.
-*   **CDS (Creator-Defined Statements)**: Добавлены команды `ambient` для простого управления (`play`, `stop`, `layer`, `volume`, `debug`).
-*   **Система Аранжировок**: Введены "Аранжировки" для создания сложных аудио-сцен со слоями.
-*   **Строгая Изоляция**: Улучшено управление треками, играют только те, что должны.
-*   **Случайные Контейнеры**: Поддержка нескольких файлов для одного ID трека (случайный выбор).
-*   **Автоматическая инициализация**: Треки автоматически инициализируются из YAML конфигурации.
-*   **Debug UI**: Улучшенный экран отладки с командой `ambient debug ui`.
+- [GitHub репозиторий](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient)
+- [Wiki документация](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/wiki)
+- [Issues](https://github.com/ElysiumTeamDevelopment/RenPyDynamicAmbient/issues)
