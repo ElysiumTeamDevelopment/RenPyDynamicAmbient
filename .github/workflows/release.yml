@@ -22,6 +22,7 @@ jobs:
         run: |
           mkdir -p release
           mkdir -p release/libs/rpda
+          mkdir -p release/example
         
       - name: Copy files to release directory
         run: |
@@ -34,6 +35,7 @@ jobs:
           cp libs/rpda/02-rpda-cds.rpy release/libs/rpda/
           cp LICENSE release/
           cp README.md release/
+          cp -r example/RPDA_Demo_Project release/example/
           
       - name: Create zip archive
         run: |
@@ -74,6 +76,7 @@ jobs:
           echo "- \`libs/rpda/02-rpda-cds.rpy\` - CDS implementation" >> changelog.md
           echo "- \`LICENSE\` - license file" >> changelog.md
           echo "- \`README.md\` - documentation" >> changelog.md
+          echo "- \`example/RPDA_Demo_Project\` - example project" >> changelog.md
           echo "" >> changelog.md
           echo "### 🚀 Installation:" >> changelog.md
           echo "1. Download the \`RenPyDynamicAmbient-${{ github.ref_name }}.zip\` archive" >> changelog.md
