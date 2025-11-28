@@ -1,0 +1,55 @@
+defaults:
+  fade_in: 2.0
+  fade_out: 2.0
+
+tracks:
+  # Mandatory background tracks
+  "1":
+    file: "audio/1.ogg"
+    type: "mandatory"
+    volume: 0.6
+    fade_in: 4.0
+    fade_out: 4.0
+
+  "2":
+    file: "audio/2.ogg"
+    type: "mandatory"
+    volume: 0.4
+    fade_in: 5.0
+    fade_out: 3.0
+
+  # Random atmospheric tracks
+  random_wind:
+    file: "audio/3.ogg"
+    type: "random"
+    volume: 0.8
+    chance: 0.3
+    interval: [45, 180]
+    fade_in: 6.0
+    fade_out: 4.0
+
+  random_nature:
+    file: "audio/4.ogg"
+    type: "random"
+    volume: 0.5
+    chance: 0.4
+    interval: [30, 120]
+    fade_in: 3.0
+    fade_out: 3.0
+
+  random_atmosphere:
+    file: "audio/5.ogg"
+    type: "random"
+    volume: 0.7
+    chance: 0.25
+    interval: [60, 240]
+    fade_in: 8.0
+    fade_out: 6.0
+
+main_theme:
+  file: "main_menu.mp3"
+  duration: 40
+  volume: 0.8
+  fade_in: 2.0
+  fade_out: 4.0
+  after_theme_arrangement: "main_menu_test" # Arrangement to play after theme ends

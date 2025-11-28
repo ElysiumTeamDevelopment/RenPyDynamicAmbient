@@ -966,8 +966,8 @@ init python:
                     current = track_data['current_volume']
                     target = track_data['target_volume']
                     
-                    # For minimum_volume (0.0) requires precision, for others - 0.01
-                    tolerance = 0.001 if target == self.minimum_volume else 0.01
+                    # Tolerance for float comparison
+                    tolerance = 0.0001
                     
                     if abs(current - target) > tolerance:
                         # Determine change speed based on fade time
@@ -980,26 +980,25 @@ init python:
                             # Fade out - use fade_out_time
                             fade_time = current_fade_time if current_fade_time is not None else track_data['fade_out_time']
                         
-                        # Calculate change step for smooth transition
-                        # Should reach target volume in fade_time seconds
-                        # If current volume is a guess (e.g. 0.5), we might be fading too fast or too slow.
-                        # To ensure it sounds like a fade, we limit the step size.
+                        # Calculate change step for smooth transition (Linear Interpolation)
+                        # We want to cover the full range (0.0 to 1.0) in fade_time seconds
+                        # So speed is 1.0 / fade_time per second
+                        # With 0.1s update interval, step is 0.1 / fade_time
                         
-                        updates_remaining = fade_time * 10
-                        if updates_remaining < 1: updates_remaining = 1
+                        # Calculate required step size
+                        # updates_remaining = fade_time * 10
+                        # step = abs(target - current) / updates_remaining
+                        # But to be truly linear and constant speed regardless of distance:
+                        step_size = 0.1 / fade_time
                         
-                        max_change_per_update = abs(target - current) / updates_remaining
-                        
-                        # Limit change speed
                         if target > current:
-                            step = min(max_change_per_update, 0.05) # Cap max step to 5% per tick
+                            new_volume = current + step_size
+                            if new_volume > target:
+                                new_volume = target
                         else:
-                            step = -min(max_change_per_update, 0.05)
-                        
-                        new_volume = current + step
-                        
-                        # Limit range
-                        new_volume = max(0.0, min(target, new_volume)) if target > current else max(target, min(1.0, new_volume))
+                            new_volume = current - step_size
+                            if new_volume < target:
+                                new_volume = target
                         
                         track_data['current_volume'] = new_volume
                         renpy.music.set_volume(new_volume, channel=track_data['channel'])
