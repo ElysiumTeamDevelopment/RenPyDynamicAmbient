@@ -1,5 +1,8 @@
 # Debug screen for Dynamic Ambient System
 
+# Debug screen for Dynamic Ambient System
+
+# Variable to toggle debug screen
 default debug_ambient = True
 
 init python:
@@ -97,4 +100,4 @@ screen ambient_debug_overlay():
 
 # Add to overlay screens so it's always visible (controlled by debug_ambient flag)
 init python:
-    config.overlay_screens.append("ambient_debug_overlay")
+    # config.overlay_screens.append("ambient_debug_overlay")

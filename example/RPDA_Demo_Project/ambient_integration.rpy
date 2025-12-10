@@ -14,18 +14,25 @@ screen ambient_settings():
         vbox:
             spacing 20
             
-            # Main volume
+            # Music volume
             hbox:
                 spacing 20
-                
-                text "Ambient Volume:" xalign 0.0
-                
+                text "Music Volume:" xalign 0.0 xsize 150
                 bar:
                     xsize 300
-                    value VariableValue("ambient_volume_setting", 0.7, 1.0, step=0.01)
-                    changed Function(ambient.set_base_volume, ambient_volume_setting)
-                    
-                text "{:.2f}".format(ambient_volume_setting) xalign 1.0
+                    value VariableValue("ambient_music_volume_setting", 0.7, 1.0, step=0.01)
+                    changed Function(ambient.set_base_volume, ambient_music_volume_setting, 'music')
+                text "{:.2f}".format(ambient_music_volume_setting) xalign 1.0
+
+            # Ambient volume
+            hbox:
+                spacing 20
+                text "Ambient Volume:" xalign 0.0 xsize 150
+                bar:
+                    xsize 300
+                    value VariableValue("ambient_ambient_volume_setting", 0.7, 1.0, step=0.01)
+                    changed Function(ambient.set_base_volume, ambient_ambient_volume_setting, 'ambient')
+                text "{:.2f}".format(ambient_ambient_volume_setting) xalign 1.0
             
             # System status
             vbox:
@@ -113,7 +120,7 @@ screen ambient_settings():
                             spacing 15
                             
                             # Track type and parameters
-                            text "Type: [track_data['type']]" size 12
+                            text "Cat: [track_data.get('category','ambient')] | Type: [track_data['type']]" size 12
                             
                             # Volume
                             text "Volume: {:.1f}%".format(track_data.get('current_volume', 0) * 100) size 12 color "#aaaaaa"
@@ -222,94 +229,4 @@ style ambient_button:
 style ambient_button_text:
     size 14
 
-# Add button to settings menu
-screen preferences():
-    tag menu
-    
-    use game_menu(_("Preferences"), scroll="viewport"):
-        
-        vbox:
-            hbox:
-                box_wrap True
-                
-                if renpy.variant("pc") or renpy.variant("web"):
-                    
-                    vbox:
-                        style_prefix "radio"
-                        label _("Display")
-                        textbutton _("Window") action Preference("display", "window")
-                        textbutton _("Fullscreen") action Preference("display", "fullscreen")
-                        
-                vbox:
-                    style_prefix "radio"
-                    label _("Rollback Side")
-                    textbutton _("Disable") action Preference("rollback side", "disable")
-                    textbutton _("Left") action Preference("rollback side", "left")
-                    textbutton _("Right") action Preference("rollback side", "right")
-                    
-                vbox:
-                    style_prefix "check"
-                    label _("Skip")
-                    textbutton _("Unseen Text") action Preference("skip", "toggle")
-                    textbutton _("After Choices") action Preference("after choices", "toggle")
-                    textbutton _("Transitions") action InvertSelected(Preference("transitions", "toggle"))
-                    
-            null height (4 * gui.pref_spacing)
-            
-            hbox:
-                style_prefix "slider"
-                box_wrap True
-                
-                vbox:
-                    label _("Text Speed")
-                    bar value Preference("text speed")
-                    
-                    label _("Auto-Forward Time")
-                    bar value Preference("auto-forward time")
-                    
-                vbox:
-                    
-                    if config.has_music:
-                        label _("Music Volume")
-                        hbox:
-                            bar value Preference("music volume")
-                            
-                    if config.has_sound:
-                        label _("Sound Volume")
-                        hbox:
-                            bar value Preference("sound volume")
-                            
-                        if config.sample_sound:
-                            textbutton _("Test") action Play("sound", config.sample_sound)
-                            
-                    if config.has_voice:
-                        label _("Voice Volume")
-                        hbox:
-                            bar value Preference("voice volume")
-                            
-                        if config.sample_voice:
-                            textbutton _("Test") action Play("voice", config.sample_voice)
-                            
-                    if config.has_music or config.has_sound or config.has_voice:
-                        null height gui.pref_spacing
-                        
-                        textbutton _("Mute All"):
-                            action Preference("all mute", "toggle")
-                            style "mute_all_button"
-            
-            # Ambient settings button
-            null height (2 * gui.pref_spacing)
-            
-            textbutton _("Ambient Settings"):
-                action ShowMenu("ambient_settings")
-                style "ambient_settings_button"
-
-style ambient_settings_button:
-    padding (20, 10)
-    background "#2a2a2a"
-    hover_background "#3a3a3a"
-    
-style ambient_settings_button_text:
-    size 18
-    color "#ffffff"
-    hover_color "#00ff00" 
+ 

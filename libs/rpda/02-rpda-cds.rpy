@@ -26,10 +26,19 @@ init python early:
             return {"action": "play", "name": name, "fade": fade_time}
             
         elif subcommand == "stop":
+            category = None
+            cp = lexer.checkpoint()
+            word = lexer.word()
+            
+            if word in ["music", "ambient"]:
+                category = word
+            else:
+                lexer.revert(cp)
+            
             fade_time = None
             if lexer.keyword("fade"):
                 fade_time = lexer.float()
-            return {"action": "stop", "fade": fade_time}
+            return {"action": "stop", "fade": fade_time, "category": category}
             
         elif subcommand == "layer":
             name = lexer.string()
@@ -55,8 +64,17 @@ init python early:
             return {"action": "resume"}
             
         elif subcommand == "volume":
+            category = None
+            cp = lexer.checkpoint()
+            word = lexer.word()
+            
+            if word in ["music", "ambient"]:
+                category = word
+            else:
+                lexer.revert(cp)
+                
             vol = lexer.float()
-            return {"action": "volume", "value": vol}
+            return {"action": "volume", "value": vol, "category": category}
             
         elif subcommand == "start_theme":
             return {"action": "start_theme"}
@@ -70,8 +88,8 @@ init python early:
             
         elif subcommand == "debug":
             info_type = lexer.word()
-            if info_type not in ["info", "runtime", "tracks"]:
-                lexer.error("Expected 'info', 'runtime', or 'tracks' for debug command.")
+            if info_type not in ["info", "runtime", "tracks", "ui"]:
+                lexer.error("Expected 'info', 'runtime', 'tracks', or 'ui' for debug command.")
             return {"action": "debug", "type": info_type}
             
         else:
@@ -104,7 +122,12 @@ init python early:
             # Actually, looking at stop_ambient, it calculates max_fade_time from tracks.
             # So passing a specific time isn't supported yet.
             # We will just pass fade_out=True.
-            store.ambient.stop_ambient(fade_out=True)
+            # We will just pass fade_out=True.
+            category = parsed_object.get("category")
+            if category:
+                store.ambient.stop_category(category, fade_out=True)
+            else:
+                store.ambient.stop_ambient(fade_out=True)
             
         elif action == "layer":
             fade = float(parsed_object["fade"]) if parsed_object["fade"] is not None else None
@@ -117,7 +140,7 @@ init python early:
             store.ambient.resume_ambient()
             
         elif action == "volume":
-            store.ambient.set_base_volume(float(parsed_object["value"]))
+            store.ambient.set_base_volume(float(parsed_object["value"]), parsed_object.get("category"))
             
         elif action == "start_theme":
             store.ambient.start_with_main_theme()
@@ -141,6 +164,11 @@ init python early:
                     renpy.notify(f"Runtime: {runtime:.1f}s")
                 else:
                     renpy.notify("Ambient Inactive")
+            elif dtype == "ui":
+                if hasattr(store, 'toggle_ambient_debug'):
+                    store.toggle_ambient_debug()
+                else:
+                    renpy.notify("Debug UI not available.")
 
     def lint_ambient(parsed_object):
         """Lints the ambient statement."""

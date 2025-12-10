@@ -14,18 +14,25 @@ screen ambient_settings():
         vbox:
             spacing 20
             
-            # Main volume
+            # Music volume
             hbox:
                 spacing 20
-                
-                text "Ambient Volume:" xalign 0.0
-                
+                text "Music Volume:" xalign 0.0 xsize 150
                 bar:
                     xsize 300
-                    value VariableValue("ambient_volume_setting", 0.7, 1.0, step=0.01)
-                    changed Function(ambient.set_base_volume, ambient_volume_setting)
-                    
-                text "{:.2f}".format(ambient_volume_setting) xalign 1.0
+                    value VariableValue("ambient_music_volume_setting", 0.7, 1.0, step=0.01)
+                    changed Function(ambient.set_base_volume, ambient_music_volume_setting, 'music')
+                text "{:.2f}".format(ambient_music_volume_setting) xalign 1.0
+
+            # Ambient volume
+            hbox:
+                spacing 20
+                text "Ambient Volume:" xalign 0.0 xsize 150
+                bar:
+                    xsize 300
+                    value VariableValue("ambient_ambient_volume_setting", 0.7, 1.0, step=0.01)
+                    changed Function(ambient.set_base_volume, ambient_ambient_volume_setting, 'ambient')
+                text "{:.2f}".format(ambient_ambient_volume_setting) xalign 1.0
             
             # System status
             vbox:
@@ -113,7 +120,7 @@ screen ambient_settings():
                             spacing 15
                             
                             # Track type and parameters
-                            text "Type: [track_data['type']]" size 12
+                            text "Cat: [track_data.get('category','ambient')] | Type: [track_data['type']]" size 12
                             
                             # Volume
                             text "Volume: {:.1f}%".format(track_data.get('current_volume', 0) * 100) size 12 color "#aaaaaa"

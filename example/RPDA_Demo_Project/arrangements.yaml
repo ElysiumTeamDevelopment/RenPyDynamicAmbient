@@ -10,7 +10,7 @@ arrangements:
   calm_morning_loop:
     tracks:
       "1": { volume: 0.5 }
-      "2": { volume: 0.6 }
+      random_wind: { volume: 0.6 }
 
   # Main Menu Test Arrangement
   main_menu_test:
