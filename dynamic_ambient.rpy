@@ -8,41 +8,45 @@ init python:
     # We read the config file manually here because we are in the init phase
     # and the DynamicAmbientSystem class hasn't been instantiated yet.
     
-    ambient_channels_list = []
+    ambient_channels_list = [] # For SFX/Ambient/Environment
+    music_channels_list = []   # For Music
     
     def init_ambient_channels():
-        global ambient_channels_list
+        global ambient_channels_list, music_channels_list
         try:
-            # We need to find the file path manually since renpy.file might not be fully ready 
-            # or we just want to be safe. But renpy.file usually works in init.
-            # Let's try to load the yaml content.
-            
-            # Default count if loading fails
-            track_count = 6 
+            # Defaults
+            ambient_count = 6
+            music_count = 2
             
             try:
                 with renpy.file("audio_assets.yaml") as f:
                     config = yaml.safe_load(f)
-                    tracks = config.get('tracks', {})
-                    track_count = len(tracks)
-                    # Add a buffer for layers or extra sounds
-                    track_count += 2
+                    
+                    # Count music tracks
+                    music_tracks = config.get('music', {})
+                    music_count = len(music_tracks) + 1 # Buffer
+                    
+                    # Count ambient tracks
+                    ambient_tracks = config.get('ambient', {})
+                    ambient_count = len(ambient_tracks) + 4 # Buffer
+                    
             except Exception as e:
                 print(f"DynamicAmbientSystem: Warning - Could not load audio_assets.yaml for channel init: {e}")
-                print("DynamicAmbientSystem: Using default channel count (6).")
+                print("DynamicAmbientSystem: Using default channel counts.")
             
-            print(f"DynamicAmbientSystem: Registering {track_count} ambient channels.")
+            print(f"DynamicAmbientSystem: Registering {music_count} music channels and {ambient_count} ambient channels.")
             
-            for i in range(track_count):
+            # Register Music Channels
+            for i in range(music_count):
+                channel_name = f"music_{i+1}"
+                music_channels_list.append(channel_name)
+                renpy.music.register_channel(channel_name, mixer="music", loop=True)
+                
+            # Register Ambient Channels
+            for i in range(ambient_count):
                 channel_name = f"ambient_{i+1}"
                 ambient_channels_list.append(channel_name)
-                
-                # Check if channel exists to avoid re-registration errors on reload
-                # Note: renpy.music.register_channel is generally safe to call multiple times,
-                # but explicit check is better if possible. 
-                # However, Ren'Py doesn't have a public 'has_channel' API easily accessible here.
-                # We'll just register it. Ren'Py handles re-registration gracefully usually.
-                renpy.music.register_channel(channel_name, "music", loop=True)
+                renpy.music.register_channel(channel_name, mixer="ambient", loop=True)
                 
         except Exception as e:
             print(f"DynamicAmbientSystem: Critical Error in channel init: {e}")
@@ -50,8 +54,9 @@ init python:
     # Run initialization
     init_ambient_channels()
 
-    # Register main theme channel
-    renpy.music.register_channel("main_theme", "music", loop=False)
+    # Register main theme channel (legacy support or special channel)
+    # forcing mixer="music"
+    renpy.music.register_channel("main_theme", mixer="music", loop=False)
     
     class DynamicAmbientSystem:
         """
@@ -160,12 +165,17 @@ init python:
             self.is_active = False
             self.is_fading_out = False # New state for smooth stop
             self.is_main_menu = True
-            self.base_volume = 0.7
+            self.base_volume_music = 0.7
+            self.base_volume_ambient = 0.7
+            # Legacy accessor for compatibility (property getter below ideally, but for now just init)
+            self.base_volume = 0.7 # Deprecated, use specific ones
+            
             self.fade_duration = 2.0
             self.minimum_volume = 0.00  # Minimum volume for random tracks
             
             # Ambient channels reference
             self.ambient_channels = ambient_channels_list
+            self.music_channels = music_channels_list
             
             # System runtime tracking
             self.ambient_start_time = 0
@@ -236,16 +246,29 @@ init python:
                     # Process defaults if needed (currently unused but good for future)
                     defaults = assets_config.get('defaults', {})
                     
-                    # Process tracks
-                    for track_id, config in assets_config.get('tracks', {}).items():
-                        # Handle both single file and list of files
-                        files = config.get('files')
-                        if not files:
-                            files = config.get('file')
-                            
+                    # Process Music Tracks
+                    for track_id, config in assets_config.get('music', {}).items():
+                        files = config.get('files') or config.get('file')
                         self.configure_track(
                             track_id=track_id,
-                            filename=files, # Pass raw value, configure_track will handle it
+                            filename=files,
+                            category="music",
+                            track_type=config.get('type', 'random'), # Music usually mandatory but flexible
+                            volume=config.get('volume', 1.0),
+                            play_chance=config.get('chance', 0.5),
+                            min_duration=config.get('interval', [30, 120])[0],
+                            max_duration=config.get('interval', [30, 120])[1],
+                            fade_in_time=config.get('fade_in', 3.0),
+                            fade_out_time=config.get('fade_out', 3.0)
+                        )
+
+                    # Process Ambient Tracks
+                    for track_id, config in assets_config.get('ambient', {}).items():
+                        files = config.get('files') or config.get('file')
+                        self.configure_track(
+                            track_id=track_id,
+                            filename=files,
+                            category="ambient",
                             track_type=config.get('type', 'random'),
                             volume=config.get('volume', 1.0),
                             play_chance=config.get('chance', 0.5),
@@ -407,7 +430,11 @@ init python:
                     
                     # Determine target volume
                     vol_multiplier = config.get('volume', 1.0)
-                    target_vol = track_data['volume'] * self.base_volume * vol_multiplier
+                    
+                    # Select appropriate base volume
+                    base_vol = self.base_volume_music if track_data.get('category') == 'music' else self.base_volume_ambient
+                    
+                    target_vol = track_data['volume'] * base_vol * vol_multiplier
                     
                     # DYNAMIC RECONFIGURATION
                     # Check if arrangement overrides track parameters
@@ -481,7 +508,7 @@ init python:
             self._create_timer(delay, lambda: self.play_arrangement(name)).start()
 
         
-        def configure_track(self, track_id, filename=None, track_type="random", 
+        def configure_track(self, track_id, filename=None, category="ambient", track_type="random", 
                         volume=1.0, play_chance=0.5, min_duration=30, 
                         max_duration=120, fade_in_time=3.0, fade_out_time=3.0):
             """
@@ -500,6 +527,7 @@ init python:
 
             self.tracks[track_id] = {
                 'filename': final_filename,
+                'category': category, # music | ambient
                 'type': track_type,
                 'volume': volume,
                 'play_chance': play_chance,
@@ -693,15 +721,71 @@ init python:
             else:
                 self._stop_all_tracks()
         
+        def stop_category(self, category, fade_out=True):
+            """Stops all tracks of a specific category"""
+            if not category:
+                self.stop_ambient(fade_out)
+                return
+
+            print(f"DEBUG: Stopping category {category}")
+
+            # Stop main theme if music
+            if category == 'music':
+                self.main_theme['is_playing'] = False
+                if fade_out:
+                    renpy.music.stop(channel="main_theme", fadeout=self.main_theme['fade_out_time'])
+                else:
+                    renpy.music.stop(channel="main_theme")
+            
+            # Stop tracks
+            tracks_stopped = False
+            for track_id, track_data in self.tracks.items():
+                if track_data.get('category') == category and track_data['is_playing']:
+                    track_data['target_volume'] = 0.0
+                    if fade_out:
+                         # Ensure we use fade out time
+                         pass 
+                    else:
+                         track_data['current_volume'] = 0.0 # Instant
+                    
+                    # Ensure random tracks are reset appropriately
+                    if track_data['type'] == 'random':
+                         self._lower_track_volume(track_id) # This handles fading out logic via timer/target volume 
+                         # But wait, lower_track_volume sets target to minimum_volume, NOT 0.0 necessarily if minimum > 0.
+                         # We want FULL STOP for category stop? 
+                         # Yes, assume "stop music" means silence music.
+                         track_data['target_volume'] = 0.0
+                         track_data['is_elevated'] = False
+                         self.tracks_fading_out.add(track_id)
+                    else:
+                         # Mandatory - just fade to 0
+                         pass
+                    
+                    tracks_stopped = True
+
+            # If we need to process fades and system is not potentially updating, ensure loop is running?
+            # System should be active if tracks were playing.
+            if tracks_stopped and self.is_active:
+                 # Loop is running, it will handle target_volume = 0.0
+                 pass
+        
 
 
         def _assign_channels(self):
-            """Assigns channels to tracks"""
-            channel_index = 0
-            for track_id in self.tracks:
-                if channel_index < len(self.ambient_channels):
-                    self.tracks[track_id]['channel'] = self.ambient_channels[channel_index]
-                    channel_index += 1
+            """Assigns channels to tracks based on category"""
+            music_idx = 0
+            ambient_idx = 0
+            
+            for track_id, track_data in self.tracks.items():
+                if track_data.get('category') == 'music':
+                    if music_idx < len(self.music_channels):
+                        track_data['channel'] = self.music_channels[music_idx]
+                        music_idx += 1
+                        
+                else: # Default to ambient
+                    if ambient_idx < len(self.ambient_channels):
+                        track_data['channel'] = self.ambient_channels[ambient_idx]
+                        ambient_idx += 1
         
         def _start_mandatory_tracks(self):
             """Starts mandatory tracks"""
@@ -759,7 +843,9 @@ init python:
             # Set parameters for smooth fade in
             track_data['is_playing'] = True
             track_data['current_volume'] = 0.0
-            track_data['target_volume'] = track_data['volume'] * self.base_volume
+            
+            base_vol = self.base_volume_music if track_data.get('category') == 'music' else self.base_volume_ambient
+            track_data['target_volume'] = track_data['volume'] * base_vol
             track_data['play_start_time'] = time.time()
             
         def _play_track_at_minimum_volume(self, track_id):
@@ -807,7 +893,9 @@ init python:
                 
             # Elevate to normal volume (or arrangement-specific volume)
             vol_multiplier = track_data.get('max_volume_multiplier', 1.0)
-            track_data['target_volume'] = track_data['volume'] * self.base_volume * vol_multiplier
+            
+            base_vol = self.base_volume_music if track_data.get('category') == 'music' else self.base_volume_ambient
+            track_data['target_volume'] = track_data['volume'] * base_vol * vol_multiplier
             track_data['is_elevated'] = True
             track_data['elevation_start_time'] = time.time()  # Mark elevation time
             
@@ -1112,20 +1200,34 @@ init python:
                 track_data['target_volume'] = 0.0
 
         
-        def set_base_volume(self, volume):
-            """Sets system base volume"""
-            self.base_volume = max(0.0, min(1.0, volume))
+        def set_base_volume(self, volume, category=None):
+            """
+            Sets system base volume.
+            category: 'music', 'ambient', or None (both)
+            """
+            if category == 'music':
+                self.base_volume_music = max(0.0, min(1.0, volume))
+            elif category == 'ambient':
+                self.base_volume_ambient = max(0.0, min(1.0, volume))
+            else:
+                self.base_volume = max(0.0, min(1.0, volume))
+                self.base_volume_music = self.base_volume
+                self.base_volume_ambient = self.base_volume
             
             # Update target volume for all tracks
             for track_data in self.tracks.values():
                 if track_data['is_playing']:
+                    # Determine applicable base volume
+                    track_cat = track_data.get('category', 'ambient')
+                    base_vol = self.base_volume_music if track_cat == 'music' else self.base_volume_ambient
+                    
                     if track_data['type'] == 'mandatory':
                         # Mandatory tracks always at normal volume
-                        track_data['target_volume'] = track_data['volume'] * self.base_volume
+                        track_data['target_volume'] = track_data['volume'] * base_vol
                     elif track_data['type'] == 'random':
                         # Random tracks: at normal volume only if elevated
                         if track_data.get('is_elevated', False):
-                            track_data['target_volume'] = track_data['volume'] * self.base_volume
+                            track_data['target_volume'] = track_data['volume'] * base_vol
                         else:
                             track_data['target_volume'] = self.minimum_volume
         
@@ -1255,7 +1357,8 @@ init python:
                         if track_data['current_volume'] == 0.0:
                             # Set to a conservative value - prefer lower to avoid spikes
                             # The fade-out loop will handle it from here
-                            track_data['current_volume'] = self.base_volume * track_data['volume'] * 0.3
+                            current_base = self.base_volume_music if track_data.get('category') == 'music' else self.base_volume_ambient
+                            track_data['current_volume'] = current_base * track_data['volume'] * 0.3
 
 # Functions for convenient use in scripts
 # Use define instead of default to prevent Ren'Py from trying to pickle the object
@@ -1263,7 +1366,9 @@ init python:
 define ambient = DynamicAmbientSystem() 
 
 # Variable to store volume setting (this CAN be saved)
-default ambient_volume_setting = 0.7
+default ambient_volume_setting = 0.7 # Deprecated/Master
+default ambient_music_volume_setting = 0.7
+default ambient_ambient_volume_setting = 0.7
 
 # State that needs to persist across saves (without threading objects)
 default _ambient_save_state = None
@@ -1278,6 +1383,8 @@ init python:
                 'active_arrangement_name': ambient.active_arrangement.name if ambient.active_arrangement else None,
                 'active_layers': set(ambient.active_layers),
                 'base_volume': ambient.base_volume,
+                'base_volume_music': ambient.base_volume_music,
+                'base_volume_ambient': ambient.base_volume_ambient,
             }
         else:
             _ambient_save_state = None
@@ -1286,7 +1393,13 @@ init python:
     def _ambient_after_load():
         global _ambient_save_state
         if _ambient_save_state:
-            ambien_volume(_ambient_save_state.get('base_volume', 0.7))
+            # Restore separate volumes if available, otherwise fallback to base
+            if 'base_volume_music' in _ambient_save_state:
+                ambient.set_base_volume(_ambient_save_state['base_volume_music'], 'music')
+                ambient.set_base_volume(_ambient_save_state['base_volume_ambient'], 'ambient')
+            else:
+                ambient.set_base_volume(_ambient_save_state.get('base_volume', 0.7))
+                
             arr_name = _ambient_save_state.get('active_arrangement_name')
             if arr_name:
                 ambient.play_arrangement(arr_name)
@@ -1311,7 +1424,9 @@ label start_main_menu_ambient:
         $ ambient_configured = True
     
     # Synchronize volume setting
-    $ ambient.set_base_volume(ambient_volume_setting)
+    # $ ambient.set_base_volume(ambient_volume_setting) # Initialize both with default for now
+    $ ambient.set_base_volume(ambient_music_volume_setting, 'music')
+    $ ambient.set_base_volume(ambient_ambient_volume_setting, 'ambient')
     
     # Start sequence: main theme → ambient
     $ ambient.start_with_main_theme()
