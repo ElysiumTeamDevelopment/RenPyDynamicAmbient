@@ -2,8 +2,8 @@ defaults:
   fade_in: 2.0
   fade_out: 2.0
 
-tracks:
-  # Mandatory background tracks
+music:
+  # Mandatory background tracks (Music)
   "1":
     file: "audio/1.ogg"
     type: "mandatory"
@@ -18,7 +18,8 @@ tracks:
     fade_in: 5.0
     fade_out: 3.0
 
-  # Random atmospheric tracks
+ambient:
+  # Random atmospheric tracks (Ambient)
   random_wind:
     file: "audio/3.ogg"
     type: "random"
@@ -47,9 +48,9 @@ tracks:
     fade_out: 6.0
 
 main_theme:
-  file: "main_menu.mp3"
+  file: "audio/DistID8 - Disorder - Demo.mp3"
   duration: 40
   volume: 0.8
   fade_in: 2.0
   fade_out: 4.0
-  after_theme_arrangement: "main_menu_test" # Arrangement to play after theme ends
+  after_theme_arrangement: "main_menu_test"

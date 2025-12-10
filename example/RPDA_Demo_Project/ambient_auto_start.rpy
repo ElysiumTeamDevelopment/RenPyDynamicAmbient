@@ -11,7 +11,7 @@ screen main_menu():
     on "show" action Function(renpy.call_in_new_context, "start_main_menu_ambient")
     
     # Stop ambient when screen is hidden (entering game or exit)
-    on "hide" action Function(ambient.stop_ambient)
+    on "hide" action Function(store.ambient.stop_ambient)
 
     add gui.main_menu_background
 
